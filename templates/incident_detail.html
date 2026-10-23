@@ -1,61 +1,442 @@
 {% extends "base.html" %}
-{% block title %}Incident #{{ incident.id }} · {{ app_name }}{% endblock %}
+{% block title %}Incident #{{ incident.id }} — {{ app_name }}{% endblock %}
 
 {% block content %}
-<section class="page-head">
-    <div>
-        <h1>Incident #{{ incident.id }}</h1>
-        <p>{{ incident.created_at }} · {{ incident.camera_source }}</p>
-    </div>
-    <div class="chips">
-        <span class="badge {{ incident.class_name }}">{{ incident.class_name }}</span>
-        <span class="badge {{ 'confirmed' if incident.alert_status != 'pending' else 'pending' }}">
-            {{ incident.alert_status }}
-        </span>
-    </div>
-</section>
-
-<section class="detail-grid">
-    <div class="card">
-        <h2>Evidence frame</h2>
-        {% if incident.snapshot_path %}
-            <img class="evidence" src="{{ url_for('web.evidence', event_id=incident.id) }}" alt="Evidence frame for incident {{ incident.id }}">
-        {% else %}
-            <p class="empty">No evidence image was stored for this incident.</p>
-        {% endif %}
-    </div>
-
-    <div class="card">
-        <h2>Details</h2>
-        <dl class="detail-list">
-            <div><dt>Class</dt><dd>{{ incident.class_name }}</dd></div>
-            <div><dt>Confidence</dt><dd>{{ '%.3f'|format(incident.confidence or 0) }}</dd></div>
-            <div><dt>Source</dt><dd>{{ incident.camera_source }}</dd></div>
-            <div><dt>Event type</dt><dd>{{ incident.event_type }}</dd></div>
-            <div><dt>Status</dt><dd>{{ incident.alert_status }}</dd></div>
-            <div><dt>Recorded</dt><dd>{{ incident.created_at }}</dd></div>
-        </dl>
-
-        <h2 style="margin-top:1.5rem">Alerts</h2>
-        <ul class="alert-list">
-            {% for alert in alerts %}
-            <li>
-                <span>#{{ alert.id }} · {{ alert.alert_level }}</span>
-                <span class="badge {{ 'acknowledged' if alert.acknowledged else 'pending' }}">
-                    {{ alert.status }}
-                </span>
-            </li>
-            {% else %}
-            <li class="empty">No alert linked to this incident.</li>
-            {% endfor %}
-        </ul>
-
-        <div class="video-actions">
-            <form action="{{ url_for('web.incident_acknowledge', event_id=incident.id) }}" method="post">
-                <button type="submit" class="btn primary">Acknowledge alerts</button>
-            </form>
-            <a class="btn" href="{{ url_for('web.history') }}">Back to history</a>
+<div class="investigation-workspace">
+    <!-- Breadcrumb & Investigation Header -->
+    <section class="investigation-header-card">
+        <div class="investigation-header-main">
+            <div class="header-left">
+                <a class="back-link" href="{{ url_for('web.history') }}">
+                    <span class="back-arrow">←</span>
+                    <span>Back to Incident Inbox</span>
+                </a>
+                <div class="incident-title-row">
+                    <h1 class="incident-headline">Incident #{{ incident.id }}</h1>
+                    <div class="incident-header-badges">
+                        <span class="badge {{ incident.class_name }} large">{{ incident.class_name|upper }}</span>
+                        {% if is_incident_model %}
+                            <span class="badge incident-status-pill {{ incident.status }} large">
+                                <span class="status-dot"></span>
+                                <span>{{ incident.status|upper }}</span>
+                            </span>
+                        {% else %}
+                            <span class="badge {{ 'confirmed' if incident.alert_status != 'pending' else 'pending' }} large">
+                                {{ incident.alert_status }}
+                            </span>
+                        {% endif %}
+                    </div>
+                </div>
+                <p class="incident-meta-subtitle">
+                    Opened at <span class="time-highlight">{{ incident.opened_at or incident.created_at }}</span> UTC
+                    • Last activity <span class="time-highlight">{{ incident.updated_at or incident.created_at }}</span> UTC
+                    • Source: <span class="cam-highlight">{{ incident.camera_source }}</span>
+                </p>
+            </div>
+            <div class="header-actions">
+                {% if is_incident_model %}
+                    {% if incident.status == 'open' %}
+                    <form action="{{ url_for('web.incident_acknowledge_lifecycle', incident_id=incident.id) }}" method="post" class="inline-form">
+                        <button type="submit" class="btn primary">
+                            <span class="btn-check">✓</span>
+                            <span>Acknowledge Incident</span>
+                        </button>
+                    </form>
+                    {% endif %}
+                {% else %}
+                    <form action="{{ url_for('web.incident_acknowledge', event_id=incident.id) }}" method="post" class="inline-form">
+                        <button type="submit" class="btn primary">
+                            <span class="btn-check">✓</span>
+                            <span>Acknowledge Alerts</span>
+                        </button>
+                    </form>
+                {% endif %}
+                <a class="btn secondary" href="{{ url_for('web.history') }}">Incident Inbox</a>
+            </div>
         </div>
+    </section>
+
+    <!-- Two-Column Investigation Layout (Reference D SOC Workflow) -->
+    <div class="investigation-split-grid">
+        <!-- Left Column: Evidence Frame & Detection Log Canvas -->
+        <div class="investigation-left-column">
+            <section class="evidence-inspection-card">
+                <div class="card-header-bar">
+                    <div class="header-title-box">
+                        <span class="header-icon">📷</span>
+                        <div>
+                            <h2 class="card-title">Evidence frame</h2>
+                            <span class="card-subtitle">Optical capture archived at time of temporal confirmation</span>
+                        </div>
+                    </div>
+                    {% if has_evidence and evidence_event_id %}
+                    <a href="{{ url_for('web.evidence', event_id=evidence_event_id) }}" target="_blank" rel="noopener" class="btn secondary small" download="evidence_incident_{{ incident.id }}.jpg">
+                        <span>Export Snapshot</span>
+                    </a>
+                    {% endif %}
+                </div>
+
+                <div class="evidence-viewport">
+                    {% if has_evidence and evidence_event_id %}
+                        <div class="evidence-image-wrapper">
+                            <img
+                                class="evidence-image"
+                                src="{{ url_for('web.evidence', event_id=evidence_event_id) }}"
+                                alt="Evidence frame for incident {{ incident.id }}"
+                            >
+                            <!-- In-Frame Detection Overlay Badge -->
+                            <div class="evidence-hud-tag {{ incident.class_name }}">
+                                <span class="hud-dot"></span>
+                                <span>{{ incident.class_name|upper }} DETECTED • {{ '%.1f'|format(((incident.peak_confidence or incident.confidence or 0)) * 100) }}%</span>
+                            </div>
+                        </div>
+                    {% else %}
+                        <!-- Designed Missing Evidence Fallback State (Reference D) -->
+                        <div class="missing-evidence-card">
+                            <div class="missing-icon-box">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="48" height="48">
+                                    <rect x="3" y="3" width="18" height="18" rx="3"/>
+                                    <circle cx="8.5" cy="8.5" r="1.5"/>
+                                    <path d="M21 15l-5-5L5 21"/>
+                                    <line x1="2" y1="2" x2="22" y2="22" stroke="currentColor" stroke-width="1.5"/>
+                                </svg>
+                            </div>
+                            <strong class="missing-title">No evidence snapshot archived on disk</strong>
+                            <p class="missing-explanation">
+                                The evidence file for this detection is missing on disk. Optical snapshot was not retained on disk or frame archiving was bypassed during high-load processing.
+                            </p>
+                            <div class="missing-diagnostics">
+                                <div class="diag-item"><span>Incident ID:</span> <strong>#{{ incident.id }}</strong></div>
+                                <div class="diag-item"><span>Monitored Source:</span> <strong>{{ incident.camera_source }}</strong></div>
+                                <div class="diag-item"><span>Timestamp:</span> <strong>{{ incident.opened_at or incident.created_at }} UTC</strong></div>
+                            </div>
+                        </div>
+                    {% endif %}
+                </div>
+
+                <div class="evidence-footer">
+                    <span class="diag-note">Frame resolution: Native capture • Bounding box coordinates generated by YOLO inference engine</span>
+                </div>
+            </section>
+
+            <!-- Attached Confirmed Detections Log -->
+            <section class="events-log-card">
+                <div class="card-header-bar">
+                    <div class="header-title-box">
+                        <span class="header-icon">📑</span>
+                        <div>
+                            <h2 class="card-title">Associated Detection Events</h2>
+                            <span class="card-subtitle">{{ events|length }} confirmed optical detection(s) coalesced into this incident</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="table-container">
+                    <table class="ops-data-table small">
+                        <thead>
+                            <tr>
+                                <th class="col-num">Event</th>
+                                <th class="col-time">Capture Time (UTC)</th>
+                                <th class="col-class">Hazard Class</th>
+                                <th class="col-conf">Confidence</th>
+                                <th class="col-status">Status</th>
+                                <th class="col-action">Snapshot</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for ev in events %}
+                            <tr>
+                                <td class="col-num num"><span class="incident-id-tag">#{{ ev.id }}</span></td>
+                                <td class="col-time"><span class="timestamp-val">{{ ev.created_at }}</span></td>
+                                <td class="col-class"><span class="badge {{ ev.class_name }} small">{{ ev.class_name }}</span></td>
+                                <td class="col-conf num">
+                                    <div class="confidence-bar">
+                                        <span class="track">
+                                            <span class="fill {{ ev.class_name }}" style="width: {{ (ev.confidence or 0) * 100 }}%;"></span>
+                                        </span>
+                                        <span class="conf-text">{{ '%.3f'|format(ev.confidence or 0) }}</span>
+                                    </div>
+                                </td>
+                                <td class="col-status"><span class="badge {{ ev.alert_status }} small">{{ ev.alert_status }}</span></td>
+                                <td class="col-action">
+                                    {% if ev.snapshot_path %}
+                                        <a href="{{ url_for('web.evidence', event_id=ev.id) }}" target="_blank" class="btn micro secondary">View Frame</a>
+                                    {% else %}
+                                        <span class="meta-tag muted">None</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% else %}
+                            <tr>
+                                <td colspan="6" class="table-cell-empty">
+                                    <span class="meta-tag">No individual event records attached.</span>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        </div>
+
+        <!-- Right Column: Incident Telemetry & Lifecycle Timeline (Reference D) -->
+        <aside class="investigation-details-column">
+            <!-- Metadata Specifications Card -->
+            <div class="telemetry-spec-card">
+                <h2 class="spec-card-title">Incident Telemetry</h2>
+                <dl class="spec-list">
+                    <div class="spec-row">
+                        <dt>Lifecycle Status</dt>
+                        <dd>
+                            {% if is_incident_model %}
+                                <span class="badge incident-status-pill {{ incident.status }}">
+                                    <span class="status-dot"></span>
+                                    <span>{{ incident.status|upper }}</span>
+                                </span>
+                            {% else %}
+                                <span class="badge {{ incident.alert_status }}">{{ incident.alert_status }}</span>
+                            {% endif %}
+                        </dd>
+                    </div>
+                    <div class="spec-row">
+                        <dt>Hazard Classification</dt>
+                        <dd>
+                            <span class="badge {{ incident.class_name }}">{{ incident.class_name }}</span>
+                        </dd>
+                    </div>
+                    <div class="spec-row">
+                        <dt>Peak Confidence</dt>
+                        <dd class="num">
+                            <div class="confidence-bar-inline">
+                                <span class="conf-text"><strong>{{ '%.3f'|format(incident.peak_confidence or incident.confidence or 0) }}</strong> ({{ '%.1f'|format(((incident.peak_confidence or incident.confidence or 0)) * 100) }}%)</span>
+                            </div>
+                        </dd>
+                    </div>
+                    <div class="spec-row">
+                        <dt>Last Confidence</dt>
+                        <dd class="num">
+                            <span class="conf-text">{{ '%.3f'|format(incident.last_confidence or incident.confidence or 0) }}</span>
+                        </dd>
+                    </div>
+                    <div class="spec-row">
+                        <dt>Confirmed Detections</dt>
+                        <dd><span class="detection-count-chip">{{ incident.event_count or events|length }} frames</span></dd>
+                    </div>
+                    <div class="spec-row">
+                        <dt>Monitored Source</dt>
+                        <dd><span class="code-pill">{{ incident.camera_source }}</span></dd>
+                    </div>
+                    <div class="spec-row">
+                        <dt>Source Type</dt>
+                        <dd><span class="meta-tag">{{ incident.source_kind or 'live' }}</span></dd>
+                    </div>
+                    <div class="spec-row">
+                        <dt>Opened Time</dt>
+                        <dd class="timestamp-val">{{ incident.opened_at or incident.created_at }} UTC</dd>
+                    </div>
+                    <div class="spec-row">
+                        <dt>Last Active</dt>
+                        <dd class="timestamp-val">{{ incident.updated_at or incident.created_at }} UTC</dd>
+                    </div>
+                    {% if incident.acknowledged_at %}
+                    <div class="spec-row">
+                        <dt>Acknowledged</dt>
+                        <dd class="timestamp-val">{{ incident.acknowledged_at }} UTC · {{ incident.acknowledged_by }}</dd>
+                    </div>
+                    {% endif %}
+                    {% if incident.closed_at %}
+                    <div class="spec-row">
+                        <dt>Closed</dt>
+                        <dd class="timestamp-val">{{ incident.closed_at }} UTC · {{ incident.closed_by }} ({{ incident.close_reason }})</dd>
+                    </div>
+                    {% if incident.notes %}
+                    <div class="spec-row">
+                        <dt>Closure Note</dt>
+                        <dd class="notes-text">{{ incident.notes }}</dd>
+                    </div>
+                    {% endif %}
+                    {% endif %}
+                </dl>
+            </div>
+
+            <!-- Operator Lifecycle Actions Card -->
+            {% if is_incident_model %}
+            <div class="incident-action-panel-card">
+                <h2 class="spec-card-title">Operator Actions</h2>
+                {% if incident.status != 'closed' %}
+                    <div class="action-panel-body">
+                        {% if incident.status == 'open' %}
+                        <form action="{{ url_for('web.incident_acknowledge_lifecycle', incident_id=incident.id) }}" method="post" class="mb-3">
+                            <button type="submit" class="btn primary full-width">
+                                <span class="btn-check">✓</span>
+                                <span>Acknowledge Incident</span>
+                            </button>
+                        </form>
+                        {% else %}
+                        <div class="acknowledged-banner mb-3">
+                            <span class="banner-icon">✓</span>
+                            <span>Incident acknowledged by {{ incident.acknowledged_by or 'operator' }}. Monitoring active.</span>
+                        </div>
+                        {% endif %}
+
+                        <form action="{{ url_for('web.incident_close_lifecycle', incident_id=incident.id) }}" method="post" class="close-incident-form">
+                            <div class="form-group mb-2">
+                                <label for="close-reason" class="form-label">Closure Reason:</label>
+                                <select id="close-reason" name="reason" class="camera-dropdown full-width" required>
+                                    <option value="resolved">Resolved — Hazard Cleared / Extinguished</option>
+                                    <option value="false_positive">False Positive — Non-Fire Optical Artifact</option>
+                                    <option value="duplicate">Duplicate — Handled in Parallel</option>
+                                    <option value="other">Other — Maintenance / Test</option>
+                                </select>
+                            </div>
+                            <div class="form-group mb-3">
+                                <label for="close-note" class="form-label">Operator Shift Notes (optional):</label>
+                                <input id="close-note" type="text" name="note" class="search-box full-width" placeholder="e.g., Confirmed controlled burn, security notified...">
+                            </div>
+                            <button type="submit" class="btn danger full-width">
+                                <span>Close Incident</span>
+                            </button>
+                        </form>
+                    </div>
+                {% else %}
+                    <div class="closed-notice-card">
+                        <div class="closed-icon">🔒</div>
+                        <strong class="closed-title">Incident Closed</strong>
+                        <p class="closed-desc">
+                            Marked closed as <strong>{{ incident.close_reason }}</strong> on {{ incident.closed_at }} UTC by {{ incident.closed_by }}.
+                        </p>
+                        <p class="closed-subnote">
+                            Closed incidents are permanently archived work items and cannot be reopened. Subsequent detections on this camera will instantiate a new active incident.
+                        </p>
+                    </div>
+                {% endif %}
+            </div>
+            {% endif %}
+
+            <!-- Visual Incident Progression Timeline (Reference D) -->
+            <div class="incident-timeline-card">
+                <h2 class="timeline-card-title">Incident Progression Timeline</h2>
+                <div class="lifecycle-timeline">
+                    <!-- Step 1: Initial AI Detection -->
+                    <div class="timeline-step completed">
+                        <div class="timeline-marker">
+                            <span class="marker-dot"></span>
+                            <span class="marker-line"></span>
+                        </div>
+                        <div class="timeline-content">
+                            <span class="step-time">{{ incident.opened_at or incident.created_at }}</span>
+                            <strong class="step-title">Initial Optical Detection</strong>
+                            <p class="step-desc">
+                                YOLO model detected {{ incident.class_name }} with {{ '%.1f'|format(((incident.peak_confidence or incident.confidence or 0)) * 100) }}% confidence on {{ incident.camera_source }}.
+                            </p>
+                        </div>
+                    </div>
+
+                    <!-- Step 2: Temporal Confirmation -->
+                    <div class="timeline-step completed">
+                        <div class="timeline-marker">
+                            <span class="marker-dot"></span>
+                            <span class="marker-line"></span>
+                        </div>
+                        <div class="timeline-content">
+                            <span class="step-time">{{ incident.opened_at or incident.created_at }}</span>
+                            <strong class="step-title">Temporal Confirmation Sustained</strong>
+                            <p class="step-desc">
+                                Detections verified across consecutive confirmation frames, discarding transient sensor noise.
+                            </p>
+                        </div>
+                    </div>
+
+                    <!-- Step 3: Operator Acknowledgement -->
+                    {% set is_acked = incident.status in ('acknowledged', 'closed') or (incident.acknowledged_at is defined and incident.acknowledged_at) %}
+                    <div class="timeline-step {{ 'completed' if is_acked else ('active' if incident.status == 'open' else 'completed') }}">
+                        <div class="timeline-marker">
+                            <span class="marker-dot {{ 'pulse' if incident.status == 'open' else '' }}"></span>
+                            <span class="marker-line"></span>
+                        </div>
+                        <div class="timeline-content">
+                            <span class="step-time">{{ incident.acknowledged_at or ('Awaiting Action' if incident.status == 'open' else 'Skipped to Close') }}</span>
+                            <strong class="step-title">
+                                {{ 'Operator Acknowledged' if is_acked else 'Operator Response Required' }}
+                            </strong>
+                            <p class="step-desc">
+                                {% if is_acked %}
+                                    Triaged by {{ incident.acknowledged_by or 'operator' }}. Hazard under active surveillance.
+                                {% else %}
+                                    Hazard requires operator inspection and acknowledgement.
+                                {% endif %}
+                            </p>
+                        </div>
+                    </div>
+
+                    <!-- Step 4: Resolution / Closure -->
+                    {% set is_closed = incident.status == 'closed' %}
+                    <div class="timeline-step {{ 'completed' if is_closed else 'pending' }}">
+                        <div class="timeline-marker">
+                            <span class="marker-dot"></span>
+                        </div>
+                        <div class="timeline-content">
+                            <span class="step-time">{{ incident.closed_at or 'Pending Resolution' }}</span>
+                            <strong class="step-title">
+                                {{ 'Incident Closed' if is_closed else 'Incident Resolution' }}
+                            </strong>
+                            <p class="step-desc">
+                                {% if is_closed %}
+                                    Closed as <em>{{ incident.close_reason }}</em> by {{ incident.closed_by }}.
+                                {% else %}
+                                    Incident remains active until explicitly closed by authorized security personnel.
+                                {% endif %}
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Transition Audit Log -->
+            {% if transitions %}
+            <div class="telemetry-spec-card">
+                <h2 class="spec-card-title">Audit Transitions Log</h2>
+                <ul class="alert-list transitions-audit-list">
+                    {% for tr in transitions %}
+                    <li class="audit-item">
+                        <div class="audit-header">
+                            <span class="badge {{ tr.to_status }} small">{{ (tr.from_status or 'created')|upper }} → {{ tr.to_status|upper }}</span>
+                            <span class="audit-time">{{ tr.created_at }}</span>
+                        </div>
+                        <div class="audit-meta">
+                            <span>Actor: <strong>{{ tr.actor }}</strong></span>
+                            {% if tr.reason %}<span>• Reason: <em>{{ tr.reason }}</em></span>{% endif %}
+                        </div>
+                    </li>
+                    {% endfor %}
+                </ul>
+            </div>
+            {% endif %}
+
+            <!-- Linked Alerts Card -->
+            <div class="linked-alerts-card">
+                <div class="alerts-header">
+                    <h2 class="alerts-title">Attached Notification Alerts</h2>
+                    <span class="alerts-count-tag">{{ alerts|length }} alert(s)</span>
+                </div>
+                <ul class="linked-alerts-list">
+                    {% for alert in alerts %}
+                    <li class="alert-item {{ 'acknowledged' if alert.acknowledged else 'pending' }}">
+                        <div class="alert-item-left">
+                            <span class="alert-pill {{ alert.alert_level }}">#{{ alert.id }} • {{ alert.alert_level|upper }}</span>
+                            <span class="alert-created-time">{{ alert.created_at }}</span>
+                        </div>
+                        <div class="alert-item-right">
+                            <span class="badge {{ 'acknowledged' if alert.acknowledged else 'pending' }}">
+                                {{ alert.status or ('acknowledged' if alert.acknowledged else 'pending') }}
+                            </span>
+                        </div>
+                    </li>
+                    {% else %}
+                    <li class="alert-item-empty">No notification alerts queued for this incident.</li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </aside>
     </div>
-</section>
+</div>
 {% endblock %}

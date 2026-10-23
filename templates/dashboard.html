@@ -1,86 +1,279 @@
 {% extends "base.html" %}
-{% block title %}Dashboard · {{ app_name }}{% endblock %}
+{% block title %}Command Center — {{ app_name }}{% endblock %}
 
 {% block content %}
-<section class="page-head">
-    <div>
-        <h1>Live monitoring</h1>
-        <p>Last refresh <span id="last-updated">never</span></p>
-    </div>
-    <div class="chips">
-        <span id="camera-badge" class="badge unknown">Camera: unknown</span>
-        <span id="model-badge" class="badge unknown">Model: not loaded</span>
-        <span id="stream-badge" class="badge muted">Stream: idle</span>
-    </div>
-</section>
-
-<section class="grid">
-    <div class="stat">
-        <span class="label">Detections</span>
-        <span class="value" id="stat-detections">0</span>
-        <span class="hint">Confirmed incidents logged</span>
-    </div>
-    <div class="stat danger">
-        <span class="label">Confirmed incidents</span>
-        <span class="value" id="stat-confirmed">0</span>
-        <span class="hint">Fire + smoke events</span>
-    </div>
-    <div class="stat accent">
-        <span class="label">Pending alerts</span>
-        <span class="value" id="stat-alerts">0</span>
-        <span class="hint">Awaiting acknowledgement</span>
-    </div>
-    <div class="stat success">
-        <span class="label">Frames analysed</span>
-        <span class="value" id="stat-frames">0</span>
-        <span class="hint"><span id="stat-skipped">0</span> skipped as blank</span>
-    </div>
-</section>
-
-<section class="grid-2">
-    <div class="card">
-        <h2>Camera feed</h2>
-        <div class="video-panel">
-            <img id="video-feed" class="video-feed" alt="Live fire detection feed">
-            <div id="video-overlay" class="video-overlay visible">
-                <strong>Stream not started</strong>
-                <span id="video-message">Press start to open the capture device.</span>
+<div class="command-center-workspace">
+    <!-- Top Telemetry KPI Bar -->
+    <section class="telemetry-grid">
+        <div class="telemetry-card" id="card-streams">
+            <div class="telemetry-header">
+                <span class="telemetry-label">VIDEO CAPTURE &amp; FEEDS</span>
+                <span class="telemetry-status-pill online" id="camera-badge">Camera: checking</span>
+            </div>
+            <div class="telemetry-body">
+                <div class="telemetry-metric">
+                    <span class="metric-val" id="stat-cameras-active">0</span>
+                    <span class="metric-sub" id="stat-cameras-total">/ 0 online</span>
+                </div>
+                <div class="telemetry-meta" id="stream-badge">Stream: idle</div>
+            </div>
+            <div class="telemetry-foot">
+                <span>Worker: <strong id="stat-worker-status">idle</strong></span>
             </div>
         </div>
-        <div class="video-actions">
-            <select id="camera-select" class="btn" style="display:none" aria-label="Camera"></select>
-            <button id="btn-start" class="btn primary" type="button">Start stream</button>
-            <button id="btn-stop" class="btn danger" type="button">Stop stream</button>
-            <a class="btn" href="{{ url_for('web.history') }}">Incident history</a>
+
+        <div class="telemetry-card" id="card-inference">
+            <div class="telemetry-header">
+                <span class="telemetry-label">INFERENCE ENGINE</span>
+                <span class="telemetry-status-pill online" id="model-badge">Model: loading</span>
+            </div>
+            <div class="telemetry-body">
+                <div class="telemetry-metric">
+                    <span class="metric-val" id="stat-frames">0</span>
+                    <span class="metric-sub">frames</span>
+                </div>
+                <div class="telemetry-meta">
+                    <span id="stat-skipped">0</span> blank skipped
+                </div>
+            </div>
+            <div class="telemetry-foot">
+                <span>Model: <strong id="model-name-label">YOLOv11 Fire/Smoke</strong></span>
+            </div>
         </div>
+
+        <div class="telemetry-card danger" id="card-incidents">
+            <div class="telemetry-header">
+                <span class="telemetry-label">OPERATIONAL INCIDENTS</span>
+                <span class="telemetry-tag danger" id="incident-status-tag">WORK ITEMS</span>
+            </div>
+            <div class="telemetry-body">
+                <div class="telemetry-metric">
+                    <span class="metric-val danger" id="stat-confirmed">{{ ((incident_stats.open or 0) + (incident_stats.acknowledged or 0)) if incident_stats else 0 }}</span>
+                    <span class="metric-sub">active</span>
+                </div>
+                <div class="telemetry-meta" id="incident-meta-breakdown">
+                    {{ incident_stats.open if incident_stats else 0 }} Open • {{ incident_stats.acknowledged if incident_stats else 0 }} Acked • {{ incident_stats.closed if incident_stats else 0 }} Closed
+                </div>
+            </div>
+            <div class="telemetry-foot">
+                <span id="stat-raw-detections">Total Detections: <strong id="stat-detections">0</strong></span>
+            </div>
+        </div>
+
+        <div class="telemetry-card accent" id="card-alerts">
+            <div class="telemetry-header">
+                <span class="telemetry-label">ALERT INBOX</span>
+                <button type="button" class="btn-micro" id="btn-ack-all-header" title="Acknowledge all pending alerts">Ack All</button>
+            </div>
+            <div class="telemetry-body">
+                <div class="telemetry-metric">
+                    <span class="metric-val accent" id="stat-alerts">0</span>
+                    <span class="metric-sub">pending</span>
+                </div>
+                <div class="telemetry-meta" id="stat-alert-status-text">
+                    Awaiting operator triage
+                </div>
+            </div>
+            <div class="telemetry-foot">
+                <span id="last-updated-label">Last sync: <span id="last-updated">just now</span></span>
+            </div>
+        </div>
+    </section>
+
+    <!-- Main Workspace Split: Camera Viewport (Left) & Alert Queue (Right) -->
+    <div class="monitoring-split-layout">
+        <!-- Live Camera Viewport (Reference A CCTV Tile) -->
+        <section class="camera-stage-card">
+            <div class="camera-stage-header">
+                <div class="stage-title-wrap">
+                    <span class="stage-icon">📹</span>
+                    <div>
+                        <h2 class="stage-title">Camera feed</h2>
+                        <span class="stage-subtitle" id="active-camera-subtitle">Primary Optical Channel • OpenCV Stream</span>
+                    </div>
+                </div>
+                <div class="stage-controls-top">
+                    <!-- Camera selector if multiple cameras exist -->
+                    <div class="camera-select-wrap">
+                        <select id="camera-select" class="camera-dropdown" aria-label="Select Camera Source">
+                            {% for c in cameras %}
+                                <option value="{{ c.id }}" {{ '' if c.enabled else 'disabled' }}>
+                                    {{ c.name }} ({{ c.source }}){{ '' if c.enabled else ' — disabled' }}
+                                </option>
+                            {% else %}
+                                <option value="">Default Source (0)</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Video Viewport Canvas with Floating HUD -->
+            <div class="video-viewport-container" id="video-viewport-wrap">
+                <!-- Floating Top HUD Overlay -->
+                <div class="viewport-hud-top">
+                    <div class="hud-group-left">
+                        <span class="hud-cam-id" id="hud-cam-name">CAM-01</span>
+                        <span class="hud-source-badge" id="hud-cam-source">SOURCE: 0</span>
+                    </div>
+                    <div class="hud-group-right">
+                        <span class="hud-status-badge idle" id="hud-stream-state">
+                            <span class="hud-dot"></span>
+                            <span id="hud-stream-state-text">STREAM IDLE</span>
+                        </span>
+                        <span class="hud-freshness" id="hud-frame-freshness">FRESHNESS: --</span>
+                    </div>
+                </div>
+
+                <!-- Video Element -->
+                <img id="video-feed" class="live-video-element" alt="Live fire detection feed">
+
+                <!-- Center State Overlays (Reference D Intentional Interaction States) -->
+                <!-- State: Stream Stopped / Idle -->
+                <div id="video-overlay" class="viewport-overlay visible">
+                    <div class="overlay-icon-box">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="40" height="40">
+                            <rect x="2" y="3" width="20" height="14" rx="2"/>
+                            <polygon points="10 8 16 10 10 12 10 8" fill="currentColor"/>
+                            <line x1="2" y1="20" x2="22" y2="20"/>
+                        </svg>
+                    </div>
+                    <strong class="overlay-title">Stream not started</strong>
+                    <p class="overlay-msg" id="video-message">Press start to open the capture device and display live frames.</p>
+                    <div class="overlay-action-row">
+                        <button id="btn-start-overlay" class="btn primary" type="button">Start Stream</button>
+                        <button id="btn-monitor-bg-overlay" class="btn secondary" type="button" title="Run AI worker in background without open browser stream">Background Worker</button>
+                    </div>
+                </div>
+
+                <!-- Floating Bottom HUD Overlay -->
+                <div class="viewport-hud-bottom">
+                    <!-- Real-Time AI Detection Readout -->
+                    <div class="hud-detection-readout nominal" id="hud-detection-bar">
+                        <span class="detection-icon" id="hud-detection-icon">🛡️</span>
+                        <div class="detection-details">
+                            <span class="detection-status-headline" id="hud-detection-title">STATUS: NOMINAL</span>
+                            <span class="detection-confidence-sub" id="hud-detection-sub">No fire or smoke detected in monitored zone</span>
+                        </div>
+                    </div>
+
+                    <!-- Bottom Right Camera Controls -->
+                    <div class="hud-controls-toolbar">
+                        <button id="btn-start" class="btn primary small" type="button">
+                            <span class="btn-dot"></span> Start
+                        </button>
+                        <button id="btn-stop" class="btn danger small" type="button">Stop</button>
+                        <button id="btn-worker-toggle" class="btn secondary small" type="button" title="Start background monitoring worker">Monitor (BG)</button>
+                        <button id="btn-fullscreen" class="btn icon-only small" type="button" title="Toggle Fullscreen View" aria-label="Fullscreen">
+                            <svg viewBox="0 0 20 20" fill="currentColor" width="14" height="14">
+                                <path fill-rule="evenodd" d="M3 4a1 1 0 011-1h4a1 1 0 010 2H5v2a1 1 0 01-2 0V4zm14 0a1 1 0 00-1-1h-4a1 1 0 100 2h2v2a1 1 0 102 0V4zM3 16a1 1 0 001 1h4a1 1 0 100-2H5v-2a1 1 0 10-2 0v4zm14 0a1 1 0 01-1 1h-4a1 1 0 110-2h2v-2a1 1 0 112 0v4z" clip-rule="evenodd"/>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Lower Toolbar -->
+            <div class="stage-footer-actions">
+                <div class="stage-footer-left">
+                    <span class="status-indicator-tag" id="monitoring-worker-badge">Worker: IDLE</span>
+                    <span class="stage-info-sep">•</span>
+                    <span class="stage-fps-label">FPS Target: 15 fps</span>
+                </div>
+                <div class="stage-footer-right">
+                    <a class="btn secondary small" href="{{ url_for('web.history') }}">Incident history</a>
+                </div>
+            </div>
+        </section>
+
+        <!-- Right Operational Queue (Reference B & C) -->
+        <aside class="ops-queue-panel">
+            <div class="panel-header">
+                <div class="panel-title-wrap">
+                    <h2 class="panel-title">Recent alerts</h2>
+                    <span class="panel-badge alert-count-badge" id="alert-queue-count">0</span>
+                </div>
+                <button type="button" class="btn-micro" id="btn-ack-all-queue">Acknowledge All</button>
+            </div>
+
+            <!-- Alert List Queue -->
+            <div class="alert-queue-wrap">
+                <ul id="alert-list" class="alert-queue-list">
+                    <li class="alert-queue-empty">
+                        <div class="empty-shield">✓</div>
+                        <strong>All Systems Nominal</strong>
+                        <span>No unacknowledged fire or smoke alerts</span>
+                    </li>
+                </ul>
+            </div>
+
+            <!-- Camera Fleet Quick Summary (Reference A) -->
+            <div class="fleet-summary-section">
+                <div class="fleet-header">
+                    <span class="fleet-label">CAMERA REGISTRY</span>
+                    <span class="fleet-count" id="fleet-count-tag">1 Camera</span>
+                </div>
+                <div class="fleet-list" id="fleet-camera-list">
+                    {% for c in cameras %}
+                        <div class="fleet-camera-item {{ 'active' if loop.first else '' }}" data-camera-id="{{ c.id }}">
+                            <div class="fleet-item-info">
+                                <span class="fleet-cam-dot {{ 'online' if c.enabled else 'offline' }}"></span>
+                                <span class="fleet-cam-name">{{ c.name }}</span>
+                                <span class="fleet-cam-src">SRC: {{ c.source }}</span>
+                            </div>
+                            <span class="fleet-cam-status-label">{{ 'READY' if c.enabled else 'DISABLED' }}</span>
+                        </div>
+                    {% else %}
+                        <div class="fleet-camera-item">
+                            <span class="fleet-cam-dot offline"></span>
+                            <span class="fleet-cam-name">Default Camera (0)</span>
+                        </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </aside>
     </div>
 
-    <div class="card">
-        <h2>Recent alerts</h2>
-        <ul id="alert-list" class="alert-list">
-            <li class="empty">No alerts recorded yet</li>
-        </ul>
-    </div>
-</section>
+    <!-- Bottom Incident Triage Table (Reference B & D) -->
+    <section class="incident-triage-card">
+        <div class="card-header-row">
+            <div>
+                <h2 class="section-title">Latest incidents</h2>
+                <span class="section-subtitle">Verified detection events recorded by AI inference pipeline</span>
+            </div>
+            <div class="header-action-group">
+                <a class="btn secondary small" href="{{ url_for('web.history') }}">
+                    <span>View All Incidents</span>
+                    <span class="arrow-glyph">→</span>
+                </a>
+            </div>
+        </div>
 
-<section class="card">
-    <h2>Latest incidents</h2>
-    <div class="table-wrap">
-        <table>
-            <thead>
-                <tr>
-                    <th>Time</th>
-                    <th>Class</th>
-                    <th>Confidence</th>
-                    <th>Source</th>
-                    <th>Status</th>
-                    <th></th>
-                </tr>
-            </thead>
-            <tbody id="event-table-body">
-                <tr><td colspan="6" class="empty">No incidents recorded yet</td></tr>
-            </tbody>
-        </table>
-    </div>
-</section>
+        <div class="table-container">
+            <table class="ops-data-table">
+                <thead>
+                    <tr>
+                        <th class="col-time">Time</th>
+                        <th class="col-class">Hazard Class</th>
+                        <th class="col-conf">Model Confidence</th>
+                        <th class="col-source">Source Camera</th>
+                        <th class="col-status">Incident Status</th>
+                        <th class="col-action">Action</th>
+                    </tr>
+                </thead>
+                <tbody id="event-table-body">
+                    <tr>
+                        <td colspan="6" class="table-cell-empty">
+                            <div class="table-empty-box">
+                                <span class="empty-icon">🛡️</span>
+                                <strong>No incidents recorded yet</strong>
+                                <p>Events will populate here automatically upon verified detection of fire or smoke.</p>
+                            </div>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+</div>
 {% endblock %}

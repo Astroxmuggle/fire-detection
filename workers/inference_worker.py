@@ -150,6 +150,7 @@ class InferenceWorker:
             "detections": 0,
             "incidents": 0,
             "reconnects": 0,
+            "replay_wraps": 0,
             "processing_errors": 0,
         }
 
@@ -273,6 +274,12 @@ class InferenceWorker:
                     continue
                 with self._lock:
                     self._counters["reconnects"] += 1
+                    # A file source that reaches EOF and reopens is replaying
+                    # footage, not watching a live scene. Count the wraps so the
+                    # API can show it explicitly instead of pretending the
+                    # replay is live monitoring.
+                    if self.source.info().kind == "file":
+                        self._counters["replay_wraps"] += 1
                 self._set_state(WorkerState.RUNNING)
                 delay = self.config.reconnect_initial
 
@@ -357,6 +364,8 @@ class InferenceWorker:
                 frame=prediction.annotated if prediction.annotated is not None else frame,
                 alert_status="confirmed",
                 event_type="detection",
+                camera_id=self.camera_id,
+                source_kind=self.source.info().kind,
             )
             stored += 1
 
@@ -397,8 +406,11 @@ class InferenceWorker:
             counters = dict(self._counters)
             state = self._state.value
             started_at = self._started_at
+        source_info = self.source.info()
         counters.update({
             "state": state,
+            "source_kind": source_info.kind,
+            "is_live": source_info.is_live,
             "queue_size": self._queue.qsize(),
             "queue_max": self.config.queue_size,
             "last_error": self._last_error,

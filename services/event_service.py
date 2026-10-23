@@ -7,7 +7,8 @@ from typing import Optional
 
 from alerts.manager import AlertManager
 from config import Config
-from database.db import get_db_connection
+from database.db import get_db_connection, transaction
+from services import incident_service
 from services.evidence_service import save_evidence_frame
 
 _alert_manager: Optional[AlertManager] = None
@@ -65,37 +66,81 @@ def create_confirmed_event(
     alert_status="confirmed",
     event_type="detection",
     play_sound=True,
+    camera_id=None,
+    source_kind=None,
 ):
-    """Persist a confirmed detection, its evidence frame and its alert record."""
+    """Persist a confirmed detection, its evidence frame, its incident and its alert.
+
+    The event insert, the incident create/update and the alert insert commit in
+    one transaction, so a crash can never leave an incident without its event or
+    an event without its alert. Evidence is written to disk first (outside the
+    database lock) and referenced by path.
+    """
     snapshot_path = None
     if frame is not None:
         snapshot_path = save_evidence_frame(frame, class_name, camera_source)
 
-    event_id = log_event(
-        event_type=event_type,
-        class_label=str(class_name),
-        confidence=confidence,
-        camera_source=str(camera_source),
-        alert_status=str(alert_status),
-        snapshot_path=snapshot_path,
-    )
-
-    alert_level = str(class_name or "info").lower()
+    resolved_camera_id = int(camera_id) if camera_id is not None else 0
+    resolved_kind = str(source_kind or "unknown")
     manager = get_alert_manager()
-    manager.create_alert(event_id=event_id, alert_level=alert_level, alert_type=alert_level)
+
+    with transaction() as connection:
+        cursor = connection.execute(
+            """
+            INSERT INTO detection_events (
+                event_type, class_name, confidence, camera_source,
+                alert_status, snapshot_path, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                event_type,
+                str(class_name),
+                float(confidence),
+                str(camera_source),
+                str(alert_status),
+                str(snapshot_path) if snapshot_path is not None else None,
+                _utc_now(),
+            ),
+        )
+        event_id = cursor.lastrowid
+
+        incident_id = incident_service.record_detection(
+            connection,
+            event_id=event_id,
+            camera_id=resolved_camera_id,
+            camera_source=str(camera_source),
+            class_name=str(class_name),
+            confidence=confidence,
+            source_kind=resolved_kind,
+            has_evidence=snapshot_path is not None,
+        )
+
+        alert_level = str(class_name or "info").lower()
+        manager.create_alert(
+            event_id=event_id,
+            alert_level=alert_level,
+            alert_type=alert_level,
+            connection=connection,
+        )
+
     if play_sound:
-        manager.notify(alert_level)
+        manager.notify(str(class_name or "info").lower())
 
     try:
         from services.event_bus import publish
         publish("event", {
             "id": event_id,
+            "incident_id": incident_id,
             "class_name": str(class_name),
             "confidence": float(confidence),
             "camera_source": str(camera_source),
             "alert_status": str(alert_status),
             "has_evidence": snapshot_path is not None,
         })
+        incident_row = incident_service.get_incident(incident_id)
+        if incident_row:
+            from services.serializers import serialize_incident
+            publish("incident", serialize_incident(incident_row))
     except Exception:
         pass
 
@@ -119,6 +164,9 @@ def get_events(filters=None):
         if filters.get("alert_status"):
             conditions.append("alert_status = ?")
             params.append(filters["alert_status"])
+        if filters.get("incident_id") is not None:
+            conditions.append("incident_id = ?")
+            params.append(int(filters["incident_id"]))
         if filters.get("since"):
             conditions.append("created_at >= ?")
             params.append(filters["since"])

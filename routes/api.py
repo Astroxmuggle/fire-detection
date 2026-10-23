@@ -26,7 +26,19 @@ from services.camera_service import (
     worker_status,
 )
 from services.event_service import get_event_by_id, get_event_stats, get_events, reset_alert_manager
+from services.incident_service import (
+    IncidentError,
+    IncidentNotFound,
+    InvalidTransition,
+    acknowledge as acknowledge_incident,
+    close as close_incident,
+    get_incident,
+    get_incident_stats,
+    get_transitions,
+    list_incidents,
+)
 from services.metrics_service import get_metrics
+from services.serializers import serialize_event, serialize_incident
 from services.status_service import get_runtime_status
 
 api_bp = Blueprint("api", __name__)
@@ -95,6 +107,7 @@ def status():
         "confirmed_incidents": stats["confirmed_incidents"],
         "pending_incidents": stats["pending_incidents"],
         "by_class": stats["by_class"],
+        "incidents": get_incident_stats(),
         "alert_count": len(alerts),
         "pending_alerts": sum(1 for item in alerts if not item.get("acknowledged")),
     }), 200
@@ -178,15 +191,106 @@ def workers():
 @api_bp.route("/events", methods=["GET"])
 def events():
     filters = request.args.to_dict()
-    return jsonify(get_events(filters)), 200
+    return jsonify([serialize_event(row) for row in get_events(filters)]), 200
 
 
 @api_bp.route("/events/<int:event_id>", methods=["GET"])
 def event_detail(event_id):
     event_data = get_event_by_id(event_id)
     if event_data:
-        return jsonify(event_data), 200
+        return jsonify(serialize_event(event_data)), 200
     return jsonify({"error": "Event not found"}), 404
+
+
+# ------------------------------------------------------------------ incidents
+@api_bp.route("/incidents", methods=["GET"])
+def incidents():
+    filters = {
+        "status": request.args.get("status"),
+        "camera_id": request.args.get("camera_id", type=int),
+        "class": request.args.get("class"),
+        "active": request.args.get("active", type=int),
+        "limit": request.args.get("limit", type=int),
+    }
+    filters = {key: value for key, value in filters.items() if value is not None and value != ""}
+
+    try:
+        rows = list_incidents(filters)
+    except IncidentError as exc:
+        return jsonify({"error": str(exc)}), 400
+
+    return jsonify([serialize_incident(row) for row in rows]), 200
+
+
+@api_bp.route("/incidents/<int:incident_id>", methods=["GET"])
+def incident_detail(incident_id):
+    row = get_incident(incident_id)
+    if row is None:
+        return jsonify({"error": "Incident not found"}), 404
+
+    payload = serialize_incident(row)
+    payload["transitions"] = get_transitions(incident_id)
+    payload["events"] = [
+        serialize_event(event) for event in get_events({"incident_id": incident_id})
+    ]
+    return jsonify(payload), 200
+
+
+@api_bp.route("/incidents/<int:incident_id>/acknowledge", methods=["POST"])
+def acknowledge_incident_route(incident_id):
+    payload = request.get_json(silent=True) or {}
+    try:
+        result = acknowledge_incident(
+            incident_id,
+            actor=str(payload.get("actor") or "operator"),
+            note=payload.get("note"),
+        )
+    except IncidentNotFound:
+        return jsonify({"error": "Incident not found"}), 404
+    except InvalidTransition as exc:
+        return jsonify({"error": str(exc)}), 409
+
+    serialized = serialize_incident(result)
+    try:
+        from services.event_bus import publish
+        publish("incident", serialized)
+    except Exception:
+        pass
+
+    return jsonify({
+        "incident": serialized,
+        "changed": bool(result.get("changed", False)),
+    }), 200
+
+
+@api_bp.route("/incidents/<int:incident_id>/close", methods=["POST"])
+def close_incident_route(incident_id):
+    payload = request.get_json(silent=True) or {}
+    try:
+        result = close_incident(
+            incident_id,
+            reason=str(payload.get("reason") or "resolved"),
+            actor=str(payload.get("actor") or "operator"),
+            note=payload.get("note"),
+        )
+    except IncidentNotFound:
+        return jsonify({"error": "Incident not found"}), 404
+    except InvalidTransition as exc:
+        return jsonify({"error": str(exc)}), 409
+    except IncidentError as exc:
+        return jsonify({"error": str(exc)}), 400
+
+    serialized = serialize_incident(result)
+    try:
+        from services.event_bus import publish
+        publish("incident", serialized)
+    except Exception:
+        pass
+
+    return jsonify({
+        "incident": serialized,
+        "changed": bool(result.get("changed", False)),
+    }), 200
 
 
 @api_bp.route("/events/stream", methods=["GET"])
@@ -254,6 +358,22 @@ def acknowledge_alert_route(alert_id):
     if acknowledge_alert(alert_id):
         return jsonify({"message": "Alert acknowledged", "alert_id": alert_id}), 200
     return jsonify({"error": "Alert not found"}), 404
+
+
+@api_bp.route("/alerts/acknowledge-all", methods=["POST"])
+def acknowledge_all_route():
+    from alerts.manager import acknowledge_all_alerts
+
+    count = acknowledge_all_alerts()
+    return jsonify({"message": f"Acknowledged {count} alert(s)", "count": count}), 200
+
+
+@api_bp.route("/events/<int:event_id>/acknowledge", methods=["POST"])
+def acknowledge_event_alerts_route(event_id):
+    from alerts.manager import acknowledge_alerts_for_event
+
+    count = acknowledge_alerts_for_event(event_id)
+    return jsonify({"message": f"Acknowledged {count} alert(s)", "event_id": event_id, "count": count}), 200
 
 
 @api_bp.route("/settings", methods=["GET"])
@@ -334,7 +454,9 @@ def update_settings():
 
 @api_bp.route("/metrics", methods=["GET"])
 def metrics():
-    return jsonify(get_metrics()), 200
+    payload = get_metrics()
+    payload["incidents"] = get_incident_stats()
+    return jsonify(payload), 200
 
 
 @api_bp.route("/stream/stop", methods=["POST"])

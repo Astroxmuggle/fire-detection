@@ -3,42 +3,158 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}{{ app_name }}{% endblock %}</title>
+    <title>{% block title %}VERDANT FIRE — {{ app_name }}{% endblock %}</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔥</text></svg>">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%230b111e'/><path d='M50 15 C35 38 25 52 25 68 C25 82 36 90 50 90 C64 90 75 82 75 68 C75 52 65 38 50 15 Z' fill='%23f97316'/><path d='M50 38 C42 50 36 60 36 70 C36 78 42 83 50 83 C58 83 64 78 64 70 C64 60 58 50 50 38 Z' fill='%23fbbf24'/></svg>">
     <script src="{{ url_for('static', filename='js/app.js') }}" defer></script>
 </head>
-<body>
-    <header class="topbar">
-        <div class="brand">
-            <span class="flame">🔥</span>
-            <div>
-                {{ app_name }}
-                <small>Fire &amp; smoke detection</small>
+<body class="app-body">
+    <div class="app-layout">
+        <!-- Sidebar Navigation -->
+        <aside class="app-sidebar" id="app-sidebar">
+            <div class="sidebar-header">
+                <a href="{{ url_for('web.dashboard') }}" class="brand-identity">
+                    <div class="brand-symbol">
+                        <svg viewBox="0 0 32 32" fill="none" class="brand-svg">
+                            <rect width="32" height="32" rx="8" fill="#131c2e" stroke="#253550" stroke-width="1"/>
+                            <path d="M16 6 C12 13 8 18 8 23 C8 27.5 11.5 30 16 30 C20.5 30 24 27.5 24 23 C24 18 20 13 16 6 Z" fill="url(#brandFlame)" />
+                            <path d="M16 14 C13.5 18 11.5 21 11.5 24 C11.5 26.5 13.5 28 16 28 C18.5 28 20.5 26.5 20.5 24 C20.5 21 18.5 18 16 14 Z" fill="#fbbf24" opacity="0.9"/>
+                            <defs>
+                                <linearGradient id="brandFlame" x1="16" y1="6" x2="16" y2="30" gradientUnits="userSpaceOnUse">
+                                    <stop stop-color="#f97316"/>
+                                    <stop offset="1" stop-color="#dc2626"/>
+                                </linearGradient>
+                            </defs>
+                        </svg>
+                    </div>
+                    <div class="brand-text">
+                        <span class="brand-title">VERDANT FIRE</span>
+                        <span class="brand-sub">{{ app_name }} v{{ app_version }}</span>
+                    </div>
+                </a>
             </div>
+
+            <nav class="sidebar-nav">
+                <div class="nav-section-label">OPERATIONS</div>
+                <a href="{{ url_for('web.dashboard') }}" class="nav-item {{ 'active' if page == 'dashboard' else '' }}">
+                    <svg class="nav-icon" viewBox="0 0 20 20" fill="currentColor">
+                        <path d="M3 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V4zM3 10a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H4a1 1 0 01-1-1v-6zM14 9a1 1 0 00-1 1v6a1 1 0 001 1h2a1 1 0 001-1v-6a1 1 0 00-1-1h-2z" />
+                    </svg>
+                    <span>Command Center</span>
+                    <span class="live-dot" id="nav-stream-indicator" title="Stream state"></span>
+                </a>
+
+                <a href="{{ url_for('web.history') }}" class="nav-item {{ 'active' if page == 'history' else '' }}">
+                    <svg class="nav-icon" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M10 2a6 6 0 00-6 6v3.586l-.707.707A1 1 0 004 14h12a1 1 0 00.707-1.707L16 11.586V8a6 6 0 00-6-6zM10 18a3 3 0 01-3-3h6a3 3 0 01-3 3z" clip-rule="evenodd" />
+                    </svg>
+                    <span>Incident Inbox</span>
+                    <span class="nav-badge" id="nav-alert-count">0</span>
+                </a>
+
+                <div class="nav-section-label">SYSTEM</div>
+                <a href="{{ url_for('api.health_check') }}" class="nav-item" target="_blank" rel="noopener">
+                    <svg class="nav-icon" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M2 5a2 2 0 012-2h12a2 2 0 012 2v10a2 2 0 01-2 2H4a2 2 0 01-2-2V5zm3 1h6v4H5V6zm6 6H5v2h6v-2zm2-6h2v2h-2V6zm2 4h-2v4h2v-4z" clip-rule="evenodd" />
+                    </svg>
+                    <span>API &amp; Telemetry</span>
+                </a>
+            </nav>
+
+            <div class="sidebar-footer">
+                <div class="connection-status-card">
+                    <div class="connection-header">
+                        <span class="status-indicator-dot online" id="sidebar-pulse-dot"></span>
+                        <span class="status-label" id="sidebar-pulse-label">SSE LINK ACTIVE</span>
+                    </div>
+                    <div class="connection-detail" id="sidebar-model-status">Model: YOLOv11 Initialized</div>
+                </div>
+                <div class="disclaimer-note">
+                    Industrial CV Prototype<br>
+                    Not a certified alarm
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Workspace Shell -->
+        <div class="app-canvas">
+            <!-- Top Operational HUD Bar -->
+            <header class="ops-bar">
+                <div class="ops-bar-left">
+                    <button type="button" class="sidebar-toggle-btn" id="btn-sidebar-toggle" aria-label="Toggle Sidebar">
+                        <svg viewBox="0 0 20 20" fill="currentColor" width="18" height="18">
+                            <path fill-rule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM3 10a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM3 15a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" clip-rule="evenodd" />
+                        </svg>
+                    </button>
+                    <div class="system-posture-badge nominal" id="system-status-pill">
+                        <span class="posture-dot"></span>
+                        <span class="posture-text">SYSTEM NOMINAL</span>
+                    </div>
+                </div>
+
+                <div class="ops-bar-center">
+                    <div class="ops-chronometer">
+                        <span class="clock-label">UTC</span>
+                        <span class="clock-val" id="clock-utc">--:--:--</span>
+                        <span class="clock-separator">•</span>
+                        <span class="clock-label">LOC</span>
+                        <span class="clock-val" id="clock-local">--:--:--</span>
+                        <span class="clock-separator">•</span>
+                        <span class="clock-freshness" id="sync-freshness">Synced just now</span>
+                    </div>
+                </div>
+
+                <div class="ops-bar-right">
+                    <div class="quick-status-chip" id="camera-summary-chip">
+                        <span class="chip-dot" id="camera-status-dot"></span>
+                        <span id="camera-summary-text">Camera: checking...</span>
+                    </div>
+                    <button type="button" class="icon-control-btn" id="btn-audio-toggle" title="Toggle Alert Audio" aria-label="Audio alerts enabled">
+                        <svg viewBox="0 0 20 20" fill="currentColor" width="16" height="16" id="audio-icon-on">
+                            <path fill-rule="evenodd" d="M9.383 3.076A1 1 0 0110 4v12a1 1 0 01-1.707.707L4.586 13H2a1 1 0 01-1-1V8a1 1 0 011-1h2.586l3.707-3.707a1 1 0 011.09-.217zM14.657 2.929a1 1 0 011.414 0A9.972 9.972 0 0119 10a9.972 9.972 0 01-2.929 7.071 1 1 0 01-1.414-1.414A7.971 7.971 0 0017 10c0-2.21-.894-4.208-2.343-5.657a1 1 0 010-1.414zm-2.829 2.828a1 1 0 011.415 0A5.983 5.983 0 0115 10a5.984 5.984 0 01-1.757 4.243 1 1 0 01-1.415-1.415A3.984 3.984 0 0013 10a3.983 3.983 0 00-1.172-2.828 1 1 0 010-1.415z" clip-rule="evenodd" />
+                        </svg>
+                        <svg viewBox="0 0 20 20" fill="currentColor" width="16" height="16" id="audio-icon-off" style="display:none">
+                            <path fill-rule="evenodd" d="M9.383 3.076A1 1 0 0110 4v12a1 1 0 01-1.707.707L4.586 13H2a1 1 0 01-1-1V8a1 1 0 011-1h2.586l3.707-3.707a1 1 0 011.09-.217zM12.293 7.293a1 1 0 011.414 0L15 8.586l1.293-1.293a1 1 0 111.414 1.414L16.414 10l1.293 1.293a1 1 0 01-1.414 1.414L15 11.414l-1.293 1.293a1 1 0 01-1.414-1.414L13.586 10l-1.293-1.293a1 1 0 010-1.414z" clip-rule="evenodd" />
+                        </svg>
+                    </button>
+                </div>
+            </header>
+
+            <!-- Flash alerts -->
+            <div class="flash-container">
+                {% with messages = get_flashed_messages(with_categories=true) %}
+                    {% if messages %}
+                        {% for category, message in messages %}
+                            <div class="flash-alert {{ category }}" role="alert">
+                                <span class="flash-icon">
+                                    {% if category == 'success' %}✓{% else %}ℹ{% endif %}
+                                </span>
+                                <span class="flash-text">{{ message }}</span>
+                            </div>
+                        {% endfor %}
+                    {% endif %}
+                {% endwith %}
+            </div>
+
+            <!-- Page Content -->
+            <main class="page-viewport">
+                {% block content %}{% endblock %}
+            </main>
+
+            <!-- Command Center Footer -->
+            <footer class="ops-footer">
+                <div class="footer-left">
+                    <span class="footer-brand">{{ app_name }} v{{ app_version }}</span>
+                    <span class="footer-dot">•</span>
+                    <span>CV Inference Pipeline • Edge Detection Mode</span>
+                </div>
+                <div class="footer-right">
+                    <span id="footer-uptime">Uptime: --</span>
+                    <span class="footer-dot">•</span>
+                    <span>Non-certified industrial demonstration</span>
+                </div>
+            </footer>
         </div>
-        <nav class="nav">
-            <a href="{{ url_for('web.dashboard') }}" class="{{ 'active' if page == 'dashboard' else '' }}">Dashboard</a>
-            <a href="{{ url_for('web.history') }}" class="{{ 'active' if page == 'history' else '' }}">Incident history</a>
-            <a href="{{ url_for('api.health_check') }}">API</a>
-        </nav>
-    </header>
-
-    <main>
-        {% with messages = get_flashed_messages(with_categories=true) %}
-            {% if messages %}
-                {% for category, message in messages %}
-                    <div class="flash {{ category }}">{{ message }}</div>
-                {% endfor %}
-            {% endif %}
-        {% endwith %}
-
-        {% block content %}{% endblock %}
-    </main>
-
-    <footer>
-        <span>{{ app_name }} v{{ app_version }} · local monitoring prototype</span>
-        <span>Not a certified fire alarm system</span>
-    </footer>
+    </div>
 </body>
 </html>

@@ -1,16 +1,27 @@
 """SQLite access layer.
 
-The database file location is resolved from the environment so tests can point
-the whole application at a throw-away file without touching production data.
+Connections are opened with a busy timeout and, when the filesystem supports it,
+WAL journaling, so several camera workers can write without blocking each other
+for long. Write paths that need a read-then-write cycle use
+:func:`transaction`, which takes an immediate write lock up front instead of
+risking a lost update between the read and the write.
+
+Schema changes are owned by :mod:`database.migrations`; this module never
+creates tables ad hoc.
 """
 
 from __future__ import annotations
 
 import os
 import sqlite3
+from contextlib import contextmanager
 from pathlib import Path
+from typing import Iterator, List
+
+from database.migrations import apply_migrations, current_version
 
 BASE_DIR = Path(__file__).resolve().parent.parent
+BUSY_TIMEOUT_MS = 10_000
 
 
 def _resolve_database_path() -> Path:
@@ -23,61 +34,64 @@ def _resolve_database_path() -> Path:
 DATABASE_PATH = _resolve_database_path()
 
 
-def get_db_connection() -> sqlite3.Connection:
-    connection = sqlite3.connect(DATABASE_PATH)
+def _configure(connection: sqlite3.Connection) -> sqlite3.Connection:
     connection.row_factory = sqlite3.Row
+    connection.execute(f"PRAGMA busy_timeout = {BUSY_TIMEOUT_MS}")
+    connection.execute("PRAGMA foreign_keys = ON")
+    # WAL lets readers proceed while a worker writes. It is a persistent
+    # database setting; on filesystems that reject it we keep the default mode.
+    try:
+        connection.execute("PRAGMA journal_mode = WAL")
+    except sqlite3.DatabaseError:
+        pass
     return connection
 
 
-def init_db() -> None:
+def get_db_connection() -> sqlite3.Connection:
+    connection = sqlite3.connect(DATABASE_PATH, timeout=BUSY_TIMEOUT_MS / 1000.0)
+    return _configure(connection)
+
+
+@contextmanager
+def transaction(immediate: bool = True) -> Iterator[sqlite3.Connection]:
+    """Explicit transaction boundary.
+
+    ``immediate=True`` acquires the write lock as the transaction starts, which
+    serialises the read-check-write sequence used when creating or updating an
+    incident. The connection is always closed and the transaction always ends
+    in COMMIT or ROLLBACK.
+    """
+    connection = get_db_connection()
+    previous_isolation = connection.isolation_level
+    try:
+        connection.isolation_level = None
+        connection.execute("BEGIN IMMEDIATE" if immediate else "BEGIN")
+        yield connection
+        connection.execute("COMMIT")
+    except Exception:
+        try:
+            connection.execute("ROLLBACK")
+        except sqlite3.Error:
+            pass
+        raise
+    finally:
+        connection.isolation_level = previous_isolation
+        connection.close()
+
+
+def init_db() -> List[int]:
+    """Apply pending migrations. Safe to call on every start."""
     connection = get_db_connection()
     try:
-        connection.execute(
-            """
-            CREATE TABLE IF NOT EXISTS detection_events (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                event_type TEXT NOT NULL,
-                class_name TEXT NOT NULL,
-                confidence REAL NOT NULL,
-                camera_source TEXT NOT NULL,
-                alert_status TEXT NOT NULL,
-                snapshot_path TEXT,
-                created_at TEXT DEFAULT CURRENT_TIMESTAMP
-            )
-            """
-        )
-        connection.execute(
-            """
-            CREATE TABLE IF NOT EXISTS alerts (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                event_id INTEGER NOT NULL,
-                alert_level TEXT NOT NULL,
-                acknowledged INTEGER DEFAULT 0,
-                created_at TEXT DEFAULT CURRENT_TIMESTAMP
-            )
-            """
-        )
-        connection.execute(
-            """
-            CREATE TABLE IF NOT EXISTS cameras (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                name TEXT NOT NULL,
-                source TEXT NOT NULL UNIQUE,
-                enabled INTEGER NOT NULL DEFAULT 1,
-                created_at TEXT DEFAULT CURRENT_TIMESTAMP
-            )
-            """
-        )
-        connection.execute(
-            "CREATE INDEX IF NOT EXISTS idx_events_created_at ON detection_events (created_at)"
-        )
-        connection.execute(
-            "CREATE INDEX IF NOT EXISTS idx_events_alert_status ON detection_events (alert_status)"
-        )
-        connection.execute(
-            "CREATE INDEX IF NOT EXISTS idx_alerts_event_id ON alerts (event_id)"
-        )
-        connection.commit()
+        return apply_migrations(connection)
+    finally:
+        connection.close()
+
+
+def schema_version() -> int:
+    connection = get_db_connection()
+    try:
+        return current_version(connection)
     finally:
         connection.close()
 

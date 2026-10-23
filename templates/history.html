@@ -1,55 +1,280 @@
 {% extends "base.html" %}
-{% block title %}Incident history · {{ app_name }}{% endblock %}
+{% block title %}Incident history — {{ app_name }}{% endblock %}
 
 {% block content %}
-<section class="page-head">
-    <div>
-        <h1>Incident history</h1>
-        <p>{{ total }} incident(s) stored · showing the latest {{ events|length }}</p>
-    </div>
-    <div class="chips">
-        <a class="chip {{ 'active' if not class_filter else '' }}" href="{{ url_for('web.history') }}">All</a>
-        <a class="chip {{ 'active' if class_filter == 'fire' else '' }}" href="/history?class=fire">Fire</a>
-        <a class="chip {{ 'active' if class_filter == 'smoke' else '' }}" href="/history?class=smoke">Smoke</a>
-    </div>
-</section>
+<div class="inbox-page-workspace">
+    <!-- Inbox Page Header -->
+    <section class="inbox-header-card">
+        <div class="inbox-header-main">
+            <div>
+                <div class="inbox-title-row">
+                    <h1 class="inbox-title">Incident history</h1>
+                    <div class="view-mode-toggle">
+                        <a href="{{ url_for('web.history', view='incidents', class=class_filter, camera=camera_filter, status=status_filter, q=search_query) }}" class="toggle-pill {{ 'active' if view_mode != 'events' else '' }}">
+                            Operational Incidents ({{ incident_stats.total }})
+                        </a>
+                        <a href="{{ url_for('web.history', view='events', class=class_filter, camera=camera_filter, status=status_filter, q=search_query) }}" class="toggle-pill {{ 'active' if view_mode == 'events' else '' }}">
+                            Raw Detection Log
+                        </a>
+                    </div>
+                </div>
+                <p class="inbox-subtitle">
+                    {% if view_mode == 'events' %}
+                        Confirmed detection events recorded with optical evidence — displaying {{ items|length }} of {{ total }}
+                    {% else %}
+                        Active hazard work items grouping confirmed sensor detections — displaying {{ items|length }} of {{ total }}
+                    {% endif %}
+                </p>
+            </div>
+            <div class="inbox-header-actions">
+                <a class="btn secondary small" href="{{ url_for('web.dashboard') }}">
+                    <span>← Return to Command Center</span>
+                </a>
+            </div>
+        </div>
 
-<section class="card">
-    <div class="table-wrap">
-        <table>
-            <thead>
-                <tr>
-                    <th>#</th>
-                    <th>Time (UTC)</th>
-                    <th>Class</th>
-                    <th>Confidence</th>
-                    <th>Source</th>
-                    <th>Status</th>
-                    <th>Evidence</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for event in events %}
-                <tr>
-                    <td class="num">{{ event.id }}</td>
-                    <td>{{ event.created_at }}</td>
-                    <td><span class="badge {{ event.class_name }}">{{ event.class_name }}</span></td>
-                    <td class="num">{{ '%.3f'|format(event.confidence or 0) }}</td>
-                    <td>{{ event.camera_source }}</td>
-                    <td>
-                        <span class="badge {{ 'confirmed' if event.alert_status != 'pending' else 'pending' }}">
-                            {{ event.alert_status }}
-                        </span>
-                    </td>
-                    <td>
-                        <a class="btn small" href="{{ url_for('web.incident_detail', event_id=event.id) }}">Open</a>
-                    </td>
-                </tr>
+        {% if view_mode != 'events' %}
+        <!-- Lifecycle Segmented Status Tabs (Reference D) -->
+        <div class="incident-status-tabs">
+            <a href="{{ url_for('web.history', view='incidents', class=class_filter, camera=camera_filter, q=search_query) }}"
+               class="status-tab {{ 'active' if not status_filter else '' }}">
+                <span class="tab-label">All Incidents</span>
+                <span class="tab-count">{{ incident_stats.total }}</span>
+            </a>
+            <a href="{{ url_for('web.history', view='incidents', status='open', class=class_filter, camera=camera_filter, q=search_query) }}"
+               class="status-tab open {{ 'active' if status_filter == 'open' else '' }}">
+                <span class="tab-dot danger"></span>
+                <span class="tab-label">Open</span>
+                <span class="tab-count danger">{{ incident_stats.open }}</span>
+            </a>
+            <a href="{{ url_for('web.history', view='incidents', status='acknowledged', class=class_filter, camera=camera_filter, q=search_query) }}"
+               class="status-tab acknowledged {{ 'active' if status_filter == 'acknowledged' else '' }}">
+                <span class="tab-dot warning"></span>
+                <span class="tab-label">Acknowledged</span>
+                <span class="tab-count warning">{{ incident_stats.acknowledged }}</span>
+            </a>
+            <a href="{{ url_for('web.history', view='incidents', status='closed', class=class_filter, camera=camera_filter, q=search_query) }}"
+               class="status-tab closed {{ 'active' if status_filter == 'closed' else '' }}">
+                <span class="tab-dot muted"></span>
+                <span class="tab-label">Closed</span>
+                <span class="tab-count">{{ incident_stats.closed }}</span>
+            </a>
+        </div>
+        {% endif %}
+
+        <!-- Filter and Search Toolbar -->
+        <form method="get" action="{{ url_for('web.history') }}" class="inbox-filter-bar">
+            <input type="hidden" name="view" value="{{ view_mode }}">
+            {% if status_filter %}
+                <input type="hidden" name="status" value="{{ status_filter }}">
+            {% endif %}
+
+            <!-- Search Input -->
+            <div class="search-input-wrap">
+                <span class="search-glyph">🔍</span>
+                <input
+                    type="search"
+                    name="q"
+                    class="search-box"
+                    placeholder="Search by ID, camera, class, reason..."
+                    value="{{ search_query or '' }}"
+                    aria-label="Search incidents"
+                >
+            </div>
+
+            <!-- Class Filter Chips -->
+            <div class="filter-group">
+                <span class="filter-group-label">Hazard:</span>
+                <div class="chips">
+                    <a class="chip {{ 'active' if not class_filter else '' }}" href="{{ url_for('web.history', view=view_mode, camera=camera_filter, status=status_filter, q=search_query) }}">All</a>
+                    <a class="chip {{ 'active' if class_filter == 'fire' else '' }}" href="{{ url_for('web.history', view=view_mode, class='fire', camera=camera_filter, status=status_filter, q=search_query) }}">Fire</a>
+                    <a class="chip {{ 'active' if class_filter == 'smoke' else '' }}" href="{{ url_for('web.history', view=view_mode, class='smoke', camera=camera_filter, status=status_filter, q=search_query) }}">Smoke</a>
+                </div>
+            </div>
+
+            <!-- Camera Filter Dropdown -->
+            {% if cameras and cameras|length > 1 %}
+            <div class="filter-group">
+                <label for="camera-filter-select" class="filter-group-label">Camera:</label>
+                <select id="camera-filter-select" name="camera" class="camera-dropdown small" onchange="this.form.submit()">
+                    <option value="">All Cameras</option>
+                    {% for c in cameras %}
+                        <option value="{{ c.source }}" {{ 'selected' if camera_filter == c.source else '' }}>
+                            {{ c.name }}
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+            {% endif %}
+
+            {% if class_filter or status_filter or camera_filter or search_query %}
+                <a class="btn secondary small clear-filter-btn" href="{{ url_for('web.history', view=view_mode) }}" title="Clear all active filters">
+                    ✕ Reset
+                </a>
+            {% endif %}
+        </form>
+    </section>
+
+    <!-- Incident / Event Table Card -->
+    <section class="inbox-table-card">
+        <div class="table-container">
+            <table class="ops-data-table">
+                {% if view_mode == 'events' %}
+                <!-- Raw Detection Event Header -->
+                <thead>
+                    <tr>
+                        <th class="col-num">#</th>
+                        <th class="col-time">Capture Time (UTC)</th>
+                        <th class="col-class">Class</th>
+                        <th class="col-conf">Confidence</th>
+                        <th class="col-source">Source Camera</th>
+                        <th class="col-status">Alert Status</th>
+                        <th class="col-action">Forensics</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for event in items %}
+                    <tr class="incident-row">
+                        <td class="col-num num">
+                            <span class="incident-id-tag">#{{ event.id }}</span>
+                        </td>
+                        <td class="col-time">
+                            <span class="timestamp-val">{{ event.created_at }}</span>
+                        </td>
+                        <td class="col-class">
+                            <span class="badge {{ event.class_name }}">{{ event.class_name }}</span>
+                        </td>
+                        <td class="col-conf num">
+                            <div class="confidence-bar">
+                                <span class="track">
+                                    <span class="fill {{ event.class_name }}" style="width: {{ (event.confidence or 0) * 100 }}%;"></span>
+                                </span>
+                                <span class="conf-text">{{ '%.3f'|format(event.confidence or 0) }}</span>
+                            </div>
+                        </td>
+                        <td class="col-source">
+                            <span class="camera-source-pill">{{ event.camera_source }}</span>
+                        </td>
+                        <td class="col-status">
+                            <span class="badge {{ 'confirmed' if event.alert_status != 'pending' else 'pending' }}">
+                                {{ event.alert_status }}
+                            </span>
+                        </td>
+                        <td class="col-action">
+                            <a class="btn small primary" href="{{ url_for('web.incident_detail', event_id=event.id) }}">
+                                <span>Inspect</span>
+                                <span class="arrow-glyph">→</span>
+                            </a>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="7" class="table-cell-empty">
+                            <div class="table-empty-box">
+                                <span class="empty-icon">📂</span>
+                                {% if class_filter or status_filter or camera_filter or search_query %}
+                                    <strong>No matching detection events</strong>
+                                    <p>No detection logs match your active query criteria.</p>
+                                    <a class="btn secondary small" href="{{ url_for('web.history', view='events') }}">Clear filters</a>
+                                {% else %}
+                                    <strong>No detection events recorded.</strong>
+                                    <p>The monitoring system has not logged any verified fire or smoke frames.</p>
+                                    <a class="btn primary small" href="{{ url_for('web.dashboard') }}">Open Command Center</a>
+                                {% endif %}
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
                 {% else %}
-                <tr><td colspan="7" class="empty">No incidents recorded yet.</td></tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </div>
-</section>
+                <!-- Operational Incidents Table Header -->
+                <thead>
+                    <tr>
+                        <th class="col-num">Incident</th>
+                        <th class="col-status">Status</th>
+                        <th class="col-class">Hazard Class</th>
+                        <th class="col-source">Monitored Source</th>
+                        <th class="col-events">Detections</th>
+                        <th class="col-conf">Peak Confidence</th>
+                        <th class="col-time">Opened (UTC)</th>
+                        <th class="col-time">Last Activity</th>
+                        <th class="col-action">Investigation</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for inc in items %}
+                    <tr class="incident-row {{ inc.status }}">
+                        <td class="col-num num">
+                            <span class="incident-id-tag">#{{ inc.id }}</span>
+                        </td>
+                        <td class="col-status">
+                            <span class="badge incident-status-pill {{ inc.status }}">
+                                <span class="status-dot"></span>
+                                <span>{{ inc.status|upper }}</span>
+                            </span>
+                        </td>
+                        <td class="col-class">
+                            <span class="badge {{ inc.class_name }}">{{ inc.class_name }}</span>
+                        </td>
+                        <td class="col-source">
+                            <span class="camera-source-pill">{{ inc.camera_source }}</span>
+                        </td>
+                        <td class="col-events num">
+                            <span class="detection-count-chip">{{ inc.event_count }} frame(s)</span>
+                        </td>
+                        <td class="col-conf num">
+                            <div class="confidence-bar">
+                                <span class="track">
+                                    <span class="fill {{ inc.class_name }}" style="width: {{ (inc.peak_confidence or 0) * 100 }}%;"></span>
+                                </span>
+                                <span class="conf-text">{{ '%.3f'|format(inc.peak_confidence or 0) }}</span>
+                            </div>
+                        </td>
+                        <td class="col-time">
+                            <span class="timestamp-val">{{ inc.opened_at }}</span>
+                        </td>
+                        <td class="col-time">
+                            <span class="timestamp-val">{{ inc.updated_at }}</span>
+                        </td>
+                        <td class="col-action">
+                            <a class="btn small primary" href="{{ url_for('web.incident_workspace', incident_id=inc.id) }}">
+                                <span>Investigate</span>
+                                <span class="arrow-glyph">→</span>
+                            </a>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="9" class="table-cell-empty">
+                            <div class="table-empty-box">
+                                <span class="empty-icon">📂</span>
+                                {% if search_query or class_filter or camera_filter %}
+                                    <strong>No matching incidents found</strong>
+                                    <p>No operational incidents match your active query criteria.</p>
+                                    <a class="btn secondary small" href="{{ url_for('web.history', view='incidents') }}">Clear all filters</a>
+                                {% elif status_filter == 'open' %}
+                                    <strong>No open incidents awaiting triage</strong>
+                                    <p>All identified fire and smoke hazards have been triaged or closed.</p>
+                                    <a class="btn primary small" href="{{ url_for('web.dashboard') }}">Return to Command Center</a>
+                                {% elif status_filter == 'acknowledged' %}
+                                    <strong>No acknowledged incidents</strong>
+                                    <p>There are no incidents in the acknowledged status.</p>
+                                {% elif status_filter == 'closed' %}
+                                    <strong>No closed incidents</strong>
+                                    <p>No incidents have been marked closed yet.</p>
+                                {% else %}
+                                    <strong>No incidents logged yet</strong>
+                                    <p>The monitoring system has not logged any verified fire or smoke work items.</p>
+                                    <a class="btn primary small" href="{{ url_for('web.dashboard') }}">Open Command Center</a>
+                                {% endif %}
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+                {% endif %}
+            </table>
+        </div>
+    </section>
+</div>
 {% endblock %}

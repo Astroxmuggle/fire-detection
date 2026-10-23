@@ -176,3 +176,17 @@ def test_events_stream_respects_disabled_flag(client, monkeypatch):
     monkeypatch.setattr(Config, "SSE_ENABLED", False)
     response = client.get("/api/events/stream")
     assert response.status_code == 404
+
+
+def test_acknowledge_all_alerts_endpoint(client):
+    _event("fire")
+    resp = client.post("/api/alerts/acknowledge-all")
+    assert resp.status_code == 200
+    assert resp.json["count"] >= 1
+
+
+def test_acknowledge_event_alerts_endpoint(client):
+    event_id = _event("smoke")
+    resp = client.post(f"/api/events/{event_id}/acknowledge")
+    assert resp.status_code == 200
+    assert resp.json["count"] >= 1

@@ -19,10 +19,26 @@ class AlertManager:
         self._alert_records = {}
 
     # ------------------------------------------------------------------ record
-    def create_alert(self, event_id=None, alert_level="info", alert_type=None, acknowledged=False):
-        alert_level_name = str(alert_level or alert_type or "info").lower()
+    def create_alert(
+        self,
+        event_id=None,
+        alert_level="info",
+        alert_type=None,
+        acknowledged=False,
+        connection=None,
+    ):
+        """Insert an alert row.
 
-        connection = get_db_connection()
+        ``connection`` lets the caller include the alert in its own transaction
+        (the confirmed-detection path does exactly that). When omitted, the
+        alert is written and committed immediately, preserving the previous
+        behaviour for every other caller.
+        """
+        alert_level_name = str(alert_level or alert_type or "info").lower()
+        owns_connection = connection is None
+        if owns_connection:
+            connection = get_db_connection()
+
         try:
             cursor = connection.execute(
                 """
@@ -36,10 +52,12 @@ class AlertManager:
                     datetime.now(timezone.utc).isoformat(timespec="seconds"),
                 ),
             )
-            connection.commit()
+            if owns_connection:
+                connection.commit()
             alert_id = cursor.lastrowid
         finally:
-            connection.close()
+            if owns_connection:
+                connection.close()
 
         record = {
             "id": alert_id,
@@ -178,6 +196,19 @@ def acknowledge_alerts_for_event(event_id) -> int:
         cursor = connection.execute(
             "UPDATE alerts SET acknowledged = 1 WHERE event_id = ? AND acknowledged = 0",
             (int(event_id),),
+        )
+        connection.commit()
+        return cursor.rowcount or 0
+    finally:
+        connection.close()
+
+
+def acknowledge_all_alerts() -> int:
+    """Mark every unacknowledged alert as acknowledged."""
+    connection = get_db_connection()
+    try:
+        cursor = connection.execute(
+            "UPDATE alerts SET acknowledged = 1 WHERE acknowledged = 0"
         )
         connection.commit()
         return cursor.rowcount or 0

@@ -143,7 +143,7 @@ class Config:
 
     # ------------------------------------------------------------------- misc
     STREAM_JPEG_QUALITY = _env_int("STREAM_JPEG_QUALITY", 70)
-    EVENT_RETENTION_DAYS = _env_int("EVENT_RETENTION_DAYS", 0)  # 0 = keep forever
+    EVENT_RETENTION_DAYS = _env_int("EVENT_RETENTION_DAYS", 30)  # 0 = keep forever, default 30 days
 
     # ----------------------------------------------------------------- workers
     # Background inference worker. Monitoring runs without any browser attached;

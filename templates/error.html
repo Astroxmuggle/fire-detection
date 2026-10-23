@@ -1,10 +1,14 @@
 {% extends "base.html" %}
-{% block title %}{{ code }} · {{ app_name }}{% endblock %}
+{% block title %}{{ code }} — Command Center — {{ app_name }}{% endblock %}
 
 {% block content %}
-<section class="card" style="text-align:center; padding: 3rem 1.5rem;">
-    <h2 style="font-size: 3rem; letter-spacing: 0; color: var(--accent);">{{ code }}</h2>
-    <p class="empty">{{ message }}</p>
-    <a class="btn primary" href="{{ url_for('web.dashboard') }}">Back to dashboard</a>
-</section>
+<div class="error-page-card">
+    <div class="error-code-badge">{{ code }}</div>
+    <h1 class="error-title">Operational Warning</h1>
+    <p class="error-message">{{ message }}</p>
+    <div class="error-actions">
+        <a class="btn primary" href="{{ url_for('web.dashboard') }}">Back to dashboard</a>
+        <a class="btn secondary" href="{{ url_for('web.history') }}">Incident history</a>
+    </div>
+</div>
 {% endblock %}

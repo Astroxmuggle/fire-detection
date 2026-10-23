@@ -1,0 +1,3 @@
+# /fire-detection-ai/fire-detection-ai/routes/__init__.py
+
+# This file is intentionally left blank.

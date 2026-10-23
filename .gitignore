@@ -1,0 +1,55 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+env/
+ENV/
+.pytest_cache/
+.cache/
+.mypy_cache/
+.ruff_cache/
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+
+# Runtime data
+fire_detection.db
+fire_detection.db-*
+*.sqlite
+*.sqlite3
+backups/
+logs/*.log
+logs/*.log.*
+snapshots/*.jpg
+snapshots/*.jpeg
+snapshots/*.png
+
+# Model artefacts: the shipped checkpoint is tracked, everything else is not
+models/*.pt
+!models/best.pt
+models/*.onnx
+models/*.engine
+models/*.torchscript
+
+# Generated presentation artefacts
+download.html
+*.pptx
+
+# Evaluation: keep the harness and the reports, not the dataset copy or the plots
+evaluation/datasets/*
+!evaluation/datasets/dfire-test/
+evaluation/datasets/dfire-test/*
+!evaluation/datasets/dfire-test/data.yaml
+evaluation/reports/runs/
+evaluation/reports/_resolved_data.yaml
+
+# OS / editors
+Thumbs.db
+desktop.ini
+.DS_Store
+.vscode/
+.idea/

@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+{% block title %}Dashboard · {{ app_name }}{% endblock %}
+
+{% block content %}
+<section class="page-head">
+    <div>
+        <h1>Live monitoring</h1>
+        <p>Last refresh <span id="last-updated">never</span></p>
+    </div>
+    <div class="chips">
+        <span id="camera-badge" class="badge unknown">Camera: unknown</span>
+        <span id="model-badge" class="badge unknown">Model: not loaded</span>
+        <span id="stream-badge" class="badge muted">Stream: idle</span>
+    </div>
+</section>
+
+<section class="grid">
+    <div class="stat">
+        <span class="label">Detections</span>
+        <span class="value" id="stat-detections">0</span>
+        <span class="hint">Confirmed incidents logged</span>
+    </div>
+    <div class="stat danger">
+        <span class="label">Confirmed incidents</span>
+        <span class="value" id="stat-confirmed">0</span>
+        <span class="hint">Fire + smoke events</span>
+    </div>
+    <div class="stat accent">
+        <span class="label">Pending alerts</span>
+        <span class="value" id="stat-alerts">0</span>
+        <span class="hint">Awaiting acknowledgement</span>
+    </div>
+    <div class="stat success">
+        <span class="label">Frames analysed</span>
+        <span class="value" id="stat-frames">0</span>
+        <span class="hint"><span id="stat-skipped">0</span> skipped as blank</span>
+    </div>
+</section>
+
+<section class="grid-2">
+    <div class="card">
+        <h2>Camera feed</h2>
+        <div class="video-panel">
+            <img id="video-feed" class="video-feed" alt="Live fire detection feed">
+            <div id="video-overlay" class="video-overlay visible">
+                <strong>Stream not started</strong>
+                <span id="video-message">Press start to open the capture device.</span>
+            </div>
+        </div>
+        <div class="video-actions">
+            <button id="btn-start" class="btn primary" type="button">Start stream</button>
+            <button id="btn-stop" class="btn danger" type="button">Stop stream</button>
+            <a class="btn" href="{{ url_for('web.history') }}">Incident history</a>
+        </div>
+    </div>
+
+    <div class="card">
+        <h2>Recent alerts</h2>
+        <ul id="alert-list" class="alert-list">
+            <li class="empty">No alerts recorded yet</li>
+        </ul>
+    </div>
+</section>
+
+<section class="card">
+    <h2>Latest incidents</h2>
+    <div class="table-wrap">
+        <table>
+            <thead>
+                <tr>
+                    <th>Time</th>
+                    <th>Class</th>
+                    <th>Confidence</th>
+                    <th>Source</th>
+                    <th>Status</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody id="event-table-body">
+                <tr><td colspan="6" class="empty">No incidents recorded yet</td></tr>
+            </tbody>
+        </table>
+    </div>
+</section>
+{% endblock %}

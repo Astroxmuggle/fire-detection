@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block title %}Incident history · {{ app_name }}{% endblock %}
+
+{% block content %}
+<section class="page-head">
+    <div>
+        <h1>Incident history</h1>
+        <p>{{ total }} incident(s) stored · showing the latest {{ events|length }}</p>
+    </div>
+    <div class="chips">
+        <a class="chip {{ 'active' if not class_filter else '' }}" href="{{ url_for('web.history') }}">All</a>
+        <a class="chip {{ 'active' if class_filter == 'fire' else '' }}" href="/history?class=fire">Fire</a>
+        <a class="chip {{ 'active' if class_filter == 'smoke' else '' }}" href="/history?class=smoke">Smoke</a>
+    </div>
+</section>
+
+<section class="card">
+    <div class="table-wrap">
+        <table>
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Time (UTC)</th>
+                    <th>Class</th>
+                    <th>Confidence</th>
+                    <th>Source</th>
+                    <th>Status</th>
+                    <th>Evidence</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for event in events %}
+                <tr>
+                    <td class="num">{{ event.id }}</td>
+                    <td>{{ event.created_at }}</td>
+                    <td><span class="badge {{ event.class_name }}">{{ event.class_name }}</span></td>
+                    <td class="num">{{ '%.3f'|format(event.confidence or 0) }}</td>
+                    <td>{{ event.camera_source }}</td>
+                    <td>
+                        <span class="badge {{ 'confirmed' if event.alert_status != 'pending' else 'pending' }}">
+                            {{ event.alert_status }}
+                        </span>
+                    </td>
+                    <td>
+                        <a class="btn small" href="{{ url_for('web.incident_detail', event_id=event.id) }}">Open</a>
+                    </td>
+                </tr>
+                {% else %}
+                <tr><td colspan="7" class="empty">No incidents recorded yet.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+{% endblock %}

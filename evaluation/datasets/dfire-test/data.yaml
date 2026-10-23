@@ -1,0 +1,18 @@
+# Held-out test split of the Roboflow "Fire-Smoke Detection" dataset (CC BY 4.0).
+# 521 images, same distribution as the split used for the metrics in the report.
+#
+# Paths are relative to this file; evaluation/run_eval.py resolves them to
+# absolute paths before handing the file to the Ultralytics validator.
+#
+# Regenerate the split with:
+#   Copy-Item "<dataset>\test\images\*" evaluation\datasets\dfire-test\images\
+#   Copy-Item "<dataset>\test\labels\*" evaluation\datasets\dfire-test\labels\
+
+train: images
+val: images
+test: images
+
+nc: 2
+names:
+  0: fire
+  1: smoke

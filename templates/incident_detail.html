@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block title %}Incident #{{ incident.id }} · {{ app_name }}{% endblock %}
+
+{% block content %}
+<section class="page-head">
+    <div>
+        <h1>Incident #{{ incident.id }}</h1>
+        <p>{{ incident.created_at }} · {{ incident.camera_source }}</p>
+    </div>
+    <div class="chips">
+        <span class="badge {{ incident.class_name }}">{{ incident.class_name }}</span>
+        <span class="badge {{ 'confirmed' if incident.alert_status != 'pending' else 'pending' }}">
+            {{ incident.alert_status }}
+        </span>
+    </div>
+</section>
+
+<section class="detail-grid">
+    <div class="card">
+        <h2>Evidence frame</h2>
+        {% if incident.snapshot_path %}
+            <img class="evidence" src="{{ url_for('web.evidence', event_id=incident.id) }}" alt="Evidence frame for incident {{ incident.id }}">
+        {% else %}
+            <p class="empty">No evidence image was stored for this incident.</p>
+        {% endif %}
+    </div>
+
+    <div class="card">
+        <h2>Details</h2>
+        <dl class="detail-list">
+            <div><dt>Class</dt><dd>{{ incident.class_name }}</dd></div>
+            <div><dt>Confidence</dt><dd>{{ '%.3f'|format(incident.confidence or 0) }}</dd></div>
+            <div><dt>Source</dt><dd>{{ incident.camera_source }}</dd></div>
+            <div><dt>Event type</dt><dd>{{ incident.event_type }}</dd></div>
+            <div><dt>Status</dt><dd>{{ incident.alert_status }}</dd></div>
+            <div><dt>Recorded</dt><dd>{{ incident.created_at }}</dd></div>
+        </dl>
+
+        <h2 style="margin-top:1.5rem">Alerts</h2>
+        <ul class="alert-list">
+            {% for alert in alerts %}
+            <li>
+                <span>#{{ alert.id }} · {{ alert.alert_level }}</span>
+                <span class="badge {{ 'acknowledged' if alert.acknowledged else 'pending' }}">
+                    {{ alert.status }}
+                </span>
+            </li>
+            {% else %}
+            <li class="empty">No alert linked to this incident.</li>
+            {% endfor %}
+        </ul>
+
+        <div class="video-actions">
+            <form action="{{ url_for('web.incident_acknowledge', event_id=incident.id) }}" method="post">
+                <button type="submit" class="btn primary">Acknowledge alerts</button>
+            </form>
+            <a class="btn" href="{{ url_for('web.history') }}">Back to history</a>
+        </div>
+    </div>
+</section>
+{% endblock %}

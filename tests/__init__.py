@@ -1,0 +1,1 @@
+# The file /fire-detection-ai/fire-detection-ai/tests/__init__.py is intentionally left blank.

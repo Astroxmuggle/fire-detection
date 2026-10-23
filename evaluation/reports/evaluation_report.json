@@ -1,0 +1,186 @@
+{
+  "generated_at": "2026-10-23T01:54:44+00:00",
+  "model": "C:\\Users\\manna_2c83x\\fire-detection-ai\\firedetec2\\fire-detection-ai\\models\\best.pt",
+  "thresholds": [
+    0.5,
+    0.4,
+    0.3
+  ],
+  "validation": {
+    "split": "test",
+    "precision": 0.7121,
+    "recall": 0.6908,
+    "map50": 0.6854,
+    "map50_95": 0.3279,
+    "elapsed_seconds": 236.3,
+    "per_class": {
+      "fire": {
+        "precision": 0.8753,
+        "recall": 0.9019,
+        "map50": 0.937,
+        "map50_95": 0.4997
+      },
+      "smoke": {
+        "precision": 0.549,
+        "recall": 0.4796,
+        "map50": 0.4338,
+        "map50_95": 0.1561
+      }
+    }
+  },
+  "negatives": {
+    "image_count": 50,
+    "thresholds": {
+      "0.5": {
+        "raw_images_with_detection": 2,
+        "raw_detections": 2,
+        "guarded_images_with_detection": 2,
+        "guarded_detections": 2,
+        "max_confidence": 0.7493,
+        "examples": [
+          {
+            "image": "WEB09533.jpg",
+            "detections": [
+              {
+                "class": "smoke",
+                "confidence": 0.749
+              }
+            ]
+          },
+          {
+            "image": "WEB10081.jpg",
+            "detections": [
+              {
+                "class": "smoke",
+                "confidence": 0.626
+              }
+            ]
+          }
+        ],
+        "raw_false_positive_rate": 0.04,
+        "guarded_false_positive_rate": 0.04
+      },
+      "0.4": {
+        "raw_images_with_detection": 3,
+        "raw_detections": 3,
+        "guarded_images_with_detection": 3,
+        "guarded_detections": 3,
+        "max_confidence": 0.7493,
+        "examples": [
+          {
+            "image": "WEB09533.jpg",
+            "detections": [
+              {
+                "class": "smoke",
+                "confidence": 0.749
+              }
+            ]
+          },
+          {
+            "image": "WEB09883.jpg",
+            "detections": [
+              {
+                "class": "fire",
+                "confidence": 0.435
+              }
+            ]
+          },
+          {
+            "image": "WEB10081.jpg",
+            "detections": [
+              {
+                "class": "smoke",
+                "confidence": 0.626
+              }
+            ]
+          }
+        ],
+        "raw_false_positive_rate": 0.06,
+        "guarded_false_positive_rate": 0.06
+      },
+      "0.3": {
+        "raw_images_with_detection": 7,
+        "raw_detections": 7,
+        "guarded_images_with_detection": 7,
+        "guarded_detections": 7,
+        "max_confidence": 0.7493,
+        "examples": [
+          {
+            "image": "AoF06788.jpg",
+            "detections": [
+              {
+                "class": "smoke",
+                "confidence": 0.357
+              }
+            ]
+          },
+          {
+            "image": "AoF07042.jpg",
+            "detections": [
+              {
+                "class": "smoke",
+                "confidence": 0.395
+              }
+            ]
+          },
+          {
+            "image": "AoF07050.jpg",
+            "detections": [
+              {
+                "class": "smoke",
+                "confidence": 0.311
+              }
+            ]
+          }
+        ],
+        "raw_false_positive_rate": 0.14,
+        "guarded_false_positive_rate": 0.14
+      }
+    },
+    "elapsed_seconds": 19.5
+  },
+  "negative_videos": {
+    "fire_negative.avi": {
+      "sampled_frames": 16,
+      "raw_detections": 7,
+      "raw_by_class": {
+        "fire": 7
+      },
+      "max_confidence": 0.632,
+      "confirmed_events": 1,
+      "confirmed_by_class": {
+        "fire": 1
+      }
+    },
+    "smoke_negative.avi": {
+      "sampled_frames": 46,
+      "raw_detections": 0,
+      "raw_by_class": {},
+      "max_confidence": 0.0,
+      "confirmed_events": 0,
+      "confirmed_by_class": {}
+    }
+  },
+  "blank_frames": {
+    "white": {
+      "detail_score": 0.0,
+      "sent_to_model": false,
+      "detections": []
+    },
+    "light_grey": {
+      "detail_score": 0.0,
+      "sent_to_model": false,
+      "detections": []
+    },
+    "mid_grey": {
+      "detail_score": 0.0,
+      "sent_to_model": false,
+      "detections": []
+    },
+    "black": {
+      "detail_score": 0.0,
+      "sent_to_model": false,
+      "detections": []
+    }
+  }
+}

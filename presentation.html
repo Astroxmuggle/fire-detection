@@ -1,0 +1,582 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FireWatch AI — Academic Project Presentation</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --card-bg: #1e293b;
+      --border: #334155;
+      --primary: #f97316;
+      --primary-glow: rgba(249, 115, 22, 0.2);
+      --accent: #ef4444;
+      --text: #f8fafc;
+      --muted: #94a3b8;
+      --green: #22c55e;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      overflow: hidden;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+    .deck-container {
+      flex: 1;
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1.5rem;
+    }
+    .slide {
+      display: none;
+      width: 100%;
+      max-width: 1200px;
+      height: 85vh;
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 2.5rem 3rem;
+      flex-direction: column;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+      position: relative;
+      animation: fadeIn 0.25s ease-out;
+    }
+    .slide.active {
+      display: flex;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .slide-badge {
+      font-size: 0.8rem;
+      font-weight: 700;
+      color: var(--primary);
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      margin-bottom: 0.4rem;
+    }
+    .slide-title {
+      font-size: 2rem;
+      font-weight: 800;
+      color: #fff;
+      margin-bottom: 1.5rem;
+      border-bottom: 2px solid var(--border);
+      padding-bottom: 0.75rem;
+    }
+    .slide-content {
+      flex: 1;
+      display: flex;
+      gap: 1.5rem;
+      overflow-y: auto;
+    }
+    .card {
+      background: #0f172a;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.5rem;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+    }
+    .card-title {
+      font-size: 1.15rem;
+      font-weight: 700;
+      color: var(--primary);
+      margin-bottom: 1rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    ul { list-style: none; }
+    li {
+      margin-bottom: 0.85rem;
+      line-height: 1.5;
+      font-size: 1rem;
+      color: #cbd5e1;
+      position: relative;
+      padding-left: 1.25rem;
+    }
+    li::before {
+      content: "•";
+      color: var(--primary);
+      font-weight: bold;
+      position: absolute;
+      left: 0;
+    }
+    .metric-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 1rem;
+      margin-bottom: 1rem;
+    }
+    .metric-card {
+      background: #1e293b;
+      padding: 1rem;
+      border-radius: 8px;
+      border-left: 4px solid var(--primary);
+    }
+    .metric-num {
+      font-size: 1.8rem;
+      font-weight: 800;
+      color: #fff;
+    }
+    .metric-label {
+      font-size: 0.85rem;
+      color: var(--muted);
+      margin-top: 0.2rem;
+    }
+    .speaker-notes-box {
+      background: #090d16;
+      border-top: 2px solid var(--primary);
+      padding: 1rem 1.5rem;
+      font-size: 0.95rem;
+      color: #94a3b8;
+      line-height: 1.5;
+      display: none;
+      max-height: 180px;
+      overflow-y: auto;
+    }
+    .speaker-notes-box.visible { display: block; }
+    .controls {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0.75rem 2rem;
+      background: #090d16;
+      border-top: 1px solid var(--border);
+    }
+    .btn {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      color: #fff;
+      padding: 0.5rem 1.25rem;
+      border-radius: 8px;
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      transition: all 0.15s;
+    }
+    .btn:hover {
+      background: var(--primary);
+      border-color: var(--primary);
+      color: #fff;
+    }
+    .counter {
+      color: var(--muted);
+      font-size: 0.9rem;
+      font-weight: 600;
+    }
+    @media print {
+      body { overflow: visible; height: auto; background: #fff; color: #000; }
+      .controls, .speaker-notes-box { display: none !important; }
+      .slide { display: flex !important; page-break-after: always; height: auto; margin-bottom: 2rem; border: 1px solid #ccc; background: #fff; color: #000; box-shadow: none; }
+      .slide-title { color: #000; border-bottom: 2px solid #ccc; }
+      .card { background: #f8fafc; border: 1px solid #ccc; }
+      li { color: #333; }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="deck-container">
+
+    <!-- SLIDE 1 -->
+    <div class="slide active">
+      <div class="slide-badge">Academic Project Defense • 2025–2026</div>
+      <h1 class="slide-title" style="font-size: 2.5rem; border: none; margin-top: 1.5rem;">
+        FireWatch AI: Real-Time Fire & Smoke Detection
+      </h1>
+      <p style="font-size: 1.2rem; color: var(--muted); margin-bottom: 2rem;">
+        Real-Time YOLO11 Inference, Algorithmic Temporal Confirmation & Incident Alerting
+      </p>
+      <div class="card" style="max-width: 600px; border-left: 4px solid var(--primary);">
+        <p style="margin-bottom: 0.5rem; color: #fff;"><strong>Domain:</strong> Computer Vision</p>
+        <p style="margin-bottom: 0.5rem; color: #fff;"><strong>Target Platform:</strong> CPU Deployment (ThinkPad / Consumer PCs)</p>
+        <p style="margin-bottom: 0.5rem; color: #fff;"><strong>Author:</strong> Manai Jesser</p>
+        <p style="color: #fff;"><strong>Supervision:</strong> University Examination Committee</p>
+      </div>
+      <div class="notes-content" style="display:none;">Good morning, Professor and members of the jury. Today, I am proud to present FireWatch AI, an end-to-end computer vision and alerting system designed for real-time fire and smoke detection.</div>
+    </div>
+
+    <!-- SLIDE 2 -->
+    <div class="slide">
+      <div class="slide-badge">Motivation & Context</div>
+      <h2 class="slide-title">Problem Statement: Why Vision-Based Fire Detection?</h2>
+      <div class="slide-content">
+        <div class="card">
+          <div class="card-title">⚠️ Traditional Point Sensor Limits</div>
+          <ul>
+            <li><strong>Convective Delay:</strong> Particles must physically drift to ceiling detectors, taking minutes.</li>
+            <li><strong>High-Ceiling Ineffectiveness:</strong> Fails in open warehouses, airports, and stadiums.</li>
+            <li><strong>Zero Outdoor Utility:</strong> Cannot monitor perimeters, forests, or yards.</li>
+          </ul>
+        </div>
+        <div class="card">
+          <div class="card-title">👁️ Computer Vision Advantage</div>
+          <ul>
+            <li><strong>Instant Line of Sight:</strong> Detects visual flames within fractions of a second (<200ms).</li>
+            <li><strong>Dual Flame & Smoke:</strong> Detects rising smoke plumes before flame breakout.</li>
+            <li><strong>Reuses Infrastructure:</strong> Integrates with existing CCTV setups.</li>
+          </ul>
+        </div>
+        <div class="card">
+          <div class="card-title">🛡️ Core Technical Challenges</div>
+          <ul>
+            <li><strong>False Alarm Fatigue:</strong> Glare, red shirts, and headlights trigger naive detectors.</li>
+            <li><strong>Compute Restraints:</strong> Heavy models require $2,000+ GPUs. We target 20+ FPS on CPU.</li>
+          </ul>
+        </div>
+      </div>
+      <div class="notes-content" style="display:none;">In warehouses and high-ceiling facilities, traditional smoke detectors suffer from severe lag because combustion particles must drift upward. CCTV-based vision solves this with zero transit delay. However, false alarms from headlights or glare and heavy GPU requirements remain the primary challenges we set out to solve.</div>
+    </div>
+
+    <!-- SLIDE 3 -->
+    <div class="slide">
+      <div class="slide-badge">Architecture</div>
+      <h2 class="slide-title">End-to-End System Architecture</h2>
+      <div class="slide-content">
+        <div class="card">
+          <div class="card-title">1. Capture & Inference</div>
+          <ul>
+            <li>OpenCV video ingest from webcam or RTSP stream.</li>
+            <li>YOLO11 Nano running at 640x640 resolution.</li>
+            <li>Class filtering and Non-Maximum Suppression (NMS).</li>
+          </ul>
+        </div>
+        <div class="card" style="border: 2px solid var(--primary);">
+          <div class="card-title">2. Temporal Confirmation</div>
+          <ul>
+            <li>ConfirmationTracker state machine.</li>
+            <li>Enforces 2+ consecutive-frame detection consensus.</li>
+            <li>Instantly resets and discards single-frame transient noise.</li>
+          </ul>
+        </div>
+        <div class="card">
+          <div class="card-title">3. Forensics & Delivery</div>
+          <ul>
+            <li>Automatic evidence snapshot capture with bounding boxes.</li>
+            <li>SQLite transactional logging (`detection_events`).</li>
+            <li>Flask MJPEG live stream & REST API dashboard.</li>
+          </ul>
+        </div>
+      </div>
+      <div class="notes-content" style="display:none;">This slide shows our decoupled architecture: OpenCV ingestion, YOLO11 Nano inference, threshold filtering, our custom temporal confirmation tracker, evidence snapshots, SQLite storage, and the web dashboard.</div>
+    </div>
+
+    <!-- SLIDE 4 -->
+    <div class="slide">
+      <div class="slide-badge">Deep Learning</div>
+      <h2 class="slide-title">Model Selection: YOLO11 Nano Architecture & Dataset</h2>
+      <div class="slide-content">
+        <div class="card">
+          <div class="card-title">Why Ultralytics YOLO11n?</div>
+          <ul>
+            <li><strong>2.6M Parameters:</strong> Compact 5.6 MB model size.</li>
+            <li><strong>Realistic on CPU:</strong> ~4.7 FPS at 640×480 on an 8-core laptop CPU, with no GPU.</li>
+            <li><strong>Decoupled Detection Heads:</strong> Separates classification from regression for tighter bounding box fit.</li>
+            <li><strong>Dual Classes:</strong> Jointly optimized for 'fire' and 'smoke'.</li>
+          </ul>
+        </div>
+        <div class="card">
+          <div class="card-title">Training Dataset & Hyperparameters</div>
+          <ul>
+            <li><strong>Benchmark:</strong> Roboflow Fire & Smoke Dataset (CC BY 4.0).</li>
+            <li><strong>Diversity:</strong> Multi-scene distribution (forests, indoors, factories, night).</li>
+            <li><strong>Augmentations:</strong> 4-image Mosaic, affine transforms, HSV jitter.</li>
+            <li><strong>Training Regimen:</strong> 50 Epochs, batch size 16, SGD/AdamW cosine scheduler.</li>
+          </ul>
+        </div>
+      </div>
+      <div class="notes-content" style="display:none;">We chose YOLO11 Nano for its lightweight 2.6 million parameter footprint. It runs smoothly on CPU while maintaining strong feature extraction for amorphous smoke and vibrant flames.</div>
+    </div>
+
+    <!-- SLIDE 5 -->
+    <div class="slide">
+      <div class="slide-badge">Quantitative Validation</div>
+      <h2 class="slide-title">Experimental Results & Performance Metrics</h2>
+      <div class="slide-content" style="flex-direction: column;">
+        <div class="metric-grid">
+          <div class="metric-card">
+            <div class="metric-num">71.2%</div>
+            <div class="metric-label">Precision (Minimizes false alarms)</div>
+          </div>
+          <div class="metric-card">
+            <div class="metric-num">69.1%</div>
+            <div class="metric-label">Recall (True incident sensitivity)</div>
+          </div>
+          <div class="metric-card">
+            <div class="metric-num">68.5%</div>
+            <div class="metric-label">mAP @ IoU 0.50 (Accurate localization)</div>
+          </div>
+          <div class="metric-card">
+            <div class="metric-num">32.8%</div>
+            <div class="metric-label">mAP @ 0.50:0.95 (Strict threshold)</div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-title">Training Dynamics</div>
+          <ul>
+            <li>Box loss decreased smoothly from 1.63 to 0.82 over 50 epochs.</li>
+            <li>Classification loss stabilized at 0.37, showing clear separation between fire and smoke.</li>
+          </ul>
+        </div>
+      </div>
+      <div class="notes-content" style="display:none;">At the final epoch the model reached 68.5% mAP@50 with 71.2% precision on the held-out test split. High precision is crucial in safety systems to prevent operator desensitization. Both box and class loss converged reliably.</div>
+    </div>
+
+    <!-- SLIDE 6 -->
+    <div class="slide">
+      <div class="slide-badge">Algorithmic Innovation</div>
+      <h2 class="slide-title">Temporal Confirmation Tracker</h2>
+      <div class="slide-content">
+        <div class="card">
+          <div class="card-title">The Problem: Single-Frame Flickers</div>
+          <ul>
+            <li>Standard detectors evaluate each frame in total isolation.</li>
+            <li>Light reflections, lighters, or vehicle lights can produce 0.51 confidence for just a single 30ms frame.</li>
+            <li>In naive systems, this causes constant false alarms.</li>
+          </ul>
+        </div>
+        <div class="card" style="border: 2px solid var(--primary);">
+          <div class="card-title">Consensus State Machine</div>
+          <ul>
+            <li><strong>Candidate State:</strong> First detection increments candidate counter.</li>
+            <li><strong>Temporal Threshold:</strong> Must persist for $N \ge 2$ consecutive frames before confirmed status.</li>
+            <li><strong>Fast Reset &amp; Latch:</strong> One event per incident; the class re-arms after 3 clear frames.</li>
+            <li><strong>Low Latency:</strong> 2 frames add ~0.4 s at ~5 FPS — still far below human response time.</li>
+          </ul>
+        </div>
+      </div>
+      <div class="notes-content" style="display:none;">Our temporal tracker prevents single-frame false alarms, tracks fire and smoke independently, and latches after confirmation so one incident produces one event. At roughly five frames per second it adds about 0.4 seconds of latency.</div>
+    </div>
+
+    <!-- SLIDE 7 -->
+    <div class="slide">
+      <div class="slide-badge">Stress Testing</div>
+      <h2 class="slide-title">Hard-Negative Evaluation (FIRESENSE Dataset)</h2>
+      <div class="slide-content">
+        <div class="card">
+          <div class="card-title" style="color: var(--green);">Smoke-Negative Clip (45.1s)</div>
+          <ul>
+            <li>Challenging outdoor video with moving clouds and tree shadows.</li>
+            <li><strong>0 Raw Detections</strong> on this clip.</li>
+            <li><strong>0 False Confirmations</strong> (100% specificity on this clip).</li>
+          </ul>
+        </div>
+        <div class="card">
+          <div class="card-title" style="color: var(--accent);">Fire-Negative Clip (15.5s) & Analysis</div>
+          <ul>
+            <li>Night scene with headlights reflecting off wet road asphalt.</li>
+            <li>7 raw detections → one confirmed false alarm (four before the latch fix) due to sustained specular glare.</li>
+            <li><strong>Academic Insight:</strong> Proves that temporal tracking must be coupled with chromatic (Cr/Cb) and flame flicker (10–13 Hz) analysis in future production versions.</li>
+          </ul>
+        </div>
+      </div>
+      <div class="notes-content" style="display:none;">Testing against the FIRESENSE benchmark showed 100% specificity on daytime outdoor smoke-negative footage. On wet-road headlight reflections, the glare persisted, revealing that future versions should combine temporal tracking with flame flicker analysis.</div>
+    </div>
+
+    <!-- SLIDE 8 -->
+    <div class="slide">
+      <div class="slide-badge">Forensics & Persistence</div>
+      <h2 class="slide-title">Evidence Capture & Alert Architecture</h2>
+      <div class="slide-content">
+        <div class="card">
+          <div class="card-title">1. Evidence Snapshots</div>
+          <ul>
+            <li>Automatically saves full-resolution annotated frames.</li>
+            <li>Timestamped cryptographic filenames stored in `/snapshots`.</li>
+          </ul>
+        </div>
+        <div class="card">
+          <div class="card-title">2. SQLite Persistence</div>
+          <ul>
+            <li>`detection_events` table stores class, confidence, and snapshot URI.</li>
+            <li>`alerts` table records acknowledgment workflow.</li>
+          </ul>
+        </div>
+        <div class="card">
+          <div class="card-title">3. Alert Manager</div>
+          <ul>
+            <li>Local audio buzzer with system frequency fallback.</li>
+            <li>60-second cooldown suppresses alert spam during ongoing fires.</li>
+          </ul>
+        </div>
+      </div>
+      <div class="notes-content" style="display:none;">Confirmed incidents save an uncompressed evidence snapshot, log a record to SQLite, and trigger an alert with a 60-second cooldown to prevent alarm spamming.</div>
+    </div>
+
+    <!-- SLIDE 9 -->
+    <div class="slide">
+      <div class="slide-badge">Quality Assurance</div>
+      <h2 class="slide-title">Software Engineering & Automated Testing</h2>
+      <div class="slide-content">
+        <div class="card">
+          <div class="card-title">62 Automated Pytest Tests (100% Pass)</div>
+          <ul>
+            <li><strong>`test_detection.py`:</strong> NMS, per-class thresholds, confirmation latch/re-arm, blank-frame guard, box filters, evidence and path safety.</li>
+            <li><strong>`test_config.py`:</strong> `.env` parsing, defaults, and environment overrides.</li>
+            <li><strong>`test_api.py` / `test_web.py`:</strong> every REST route, every HTML page, alert acknowledgement, settings validation.</li>
+          </ul>
+          <div style="margin-top: 1.5rem; padding: 1rem; background: #1e293b; border-radius: 8px; border-left: 4px solid var(--green);">
+            <strong style="color: var(--green);">Result:</strong> 62 passed in ~14 seconds under Python 3.13, each on a temporary database.
+          </div>
+        </div>
+      </div>
+      <div class="notes-content" style="display:none;">The system ships with 62 automated Pytest tests covering the vision pipeline, persistence, every API route and every page. Each test runs against a temporary database, so the suite can never damage operational data.</div>
+    </div>
+
+    <!-- SLIDE 10 -->
+    <div class="slide">
+      <div class="slide-badge">Interface</div>
+      <h2 class="slide-title">Operator Dashboard & RESTful Management API</h2>
+      <div class="slide-content">
+        <div class="card">
+          <div class="card-title">Flask Web Dashboard</div>
+          <ul>
+            <li>Live MJPEG video stream rendered directly at `/video_feed`.</li>
+            <li>Honest status badges driven by real runtime state (camera, model, stream).</li>
+            <li>Incident history table linking to a detail page with the stored evidence frame.</li>
+            <li>One-click operator acknowledgement from the incident page.</li>
+          </ul>
+        </div>
+        <div class="card">
+          <div class="card-title">REST API Endpoints</div>
+          <ul>
+            <li>`GET /api/status` — Real camera/model state and event counts.</li>
+            <li>`GET /api/events` — Filtered historical incident queries.</li>
+            <li>`POST /api/alerts/<id>/acknowledge` — Silence an active alarm.</li>
+            <li>`PUT /api/settings` — Update thresholds for new capture sessions, no restart needed.</li>
+          </ul>
+        </div>
+      </div>
+      <div class="notes-content" style="display:none;">The operator dashboard provides real-time situational awareness with live video streaming, evidence inspection on the incident page, and RESTful control for external building management systems.</div>
+    </div>
+
+    <!-- SLIDE 11 -->
+    <div class="slide">
+      <div class="slide-badge">Roadmap</div>
+      <h2 class="slide-title">Limitations & Future Work</h2>
+      <div class="slide-content">
+        <div class="card">
+          <div class="card-title">Current Boundaries</div>
+          <ul>
+            <li>Intended as an auxiliary monitor, not a replacement for certified NFPA alarms.</li>
+            <li>CPU-bound: ~4.7 FPS at 640×480 on an 8-core CPU; a GPU or ONNX/OpenVINO export is the obvious next step.</li>
+            <li>Single camera per process (RTSP URLs are supported, a camera registry is not).</li>
+          </ul>
+        </div>
+        <div class="card">
+          <div class="card-title">Future Enhancements</div>
+          <ul>
+            <li><strong>Remote Alerting:</strong> SMTP email with attached snapshots, Telegram bot, and SMS.</li>
+            <li><strong>Multi-Camera RTSP:</strong> Simultaneous multi-zone surveillance.</li>
+            <li><strong>Flame Flicker FFT:</strong> 10–13 Hz frequency filtering to eliminate headlight glare.</li>
+          </ul>
+        </div>
+      </div>
+      <div class="notes-content" style="display:none;">We are clear about our prototype limitations. Future enhancements will add remote SMTP/Telegram alerts, multi-camera support, and flame flicker frequency filtering.</div>
+    </div>
+
+    <!-- SLIDE 12 -->
+    <div class="slide">
+      <div class="slide-badge">Conclusion</div>
+      <h2 class="slide-title" style="text-align: center;">Conclusion & Project Defense Q&A</h2>
+      <div class="slide-content" style="flex-direction: column; align-items: center; justify-content: center; text-align: center;">
+        <div class="card" style="max-width: 800px; width: 100%;">
+          <ul style="text-align: left; margin-bottom: 1.5rem;">
+            <li>✔ Fine-tuned YOLO11n achieves <strong>68.5% mAP@50</strong> and <strong>71.2% Precision</strong>.</li>
+            <li>✔ Temporal confirmation tracker with per-class latch and blank-frame guard removes transient false alarms.</li>
+            <li>✔ Fully functional end-to-end stack: OpenCV, SQLite, Flask, and evidence snapshotting.</li>
+            <li>✔ Verified by 62 automated tests and empirical FIRESENSE stress testing.</li>
+          </ul>
+          <h3 style="color: var(--primary); font-size: 1.4rem;">Thank You for Your Attention!</h3>
+          <p style="color: var(--muted); margin-top: 0.5rem;">Questions & Discussion</p>
+        </div>
+      </div>
+      <div class="notes-content" style="display:none;">In conclusion, FireWatch AI bridges deep learning theory with practical safety engineering on edge CPU hardware. Thank you very much for your time. I am open to your questions.</div>
+    </div>
+
+  </div>
+
+  <!-- SPEAKER NOTES PANE -->
+  <div id="notesPane" class="speaker-notes-box">
+    <strong>Speaker Notes:</strong> <span id="notesText"></span>
+  </div>
+
+  <!-- BOTTOM BAR -->
+  <div class="controls">
+    <div>
+      <button class="btn" id="prevBtn" onclick="prevSlide()">◀ Previous</button>
+      <button class="btn" id="nextBtn" onclick="nextSlide()">Next ▶</button>
+      <button class="btn" onclick="toggleNotes()">📝 Notes (N)</button>
+    </div>
+    <div class="counter" id="slideCounter">Slide 1 / 12</div>
+    <div>
+      <button class="btn" onclick="window.print()">🖨️ Save as PDF</button>
+      <button class="btn" onclick="toggleFullscreen()">⛶ Fullscreen (F)</button>
+    </div>
+  </div>
+
+  <script>
+    let currentSlide = 0;
+    const slides = document.querySelectorAll('.slide');
+    const notesText = document.getElementById('notesText');
+    const notesPane = document.getElementById('notesPane');
+    const counter = document.getElementById('slideCounter');
+
+    function updateSlide() {
+      slides.forEach((s, idx) => {
+        s.classList.toggle('active', idx === currentSlide);
+      });
+      const currentNotes = slides[currentSlide].querySelector('.notes-content');
+      notesText.textContent = currentNotes ? currentNotes.textContent : "No notes for this slide.";
+      counter.textContent = `Slide ${currentSlide + 1} / ${slides.length}`;
+    }
+
+    function nextSlide() {
+      if (currentSlide < slides.length - 1) {
+        currentSlide++;
+        updateSlide();
+      }
+    }
+
+    function prevSlide() {
+      if (currentSlide > 0) {
+        currentSlide--;
+        updateSlide();
+      }
+    }
+
+    function toggleNotes() {
+      notesPane.classList.toggle('visible');
+    }
+
+    function toggleFullscreen() {
+      if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen();
+      } else {
+        if (document.exitFullscreen) document.exitFullscreen();
+      }
+    }
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'PageDown') nextSlide();
+      if (e.key === 'ArrowLeft' || e.key === 'PageUp') prevSlide();
+      if (e.key.toLowerCase() === 'n') toggleNotes();
+      if (e.key.toLowerCase() === 'f') toggleFullscreen();
+    });
+
+    updateSlide();
+  </script>
+</body>
+</html>

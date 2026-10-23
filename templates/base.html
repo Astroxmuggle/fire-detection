@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}{{ app_name }}{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔥</text></svg>">
+    <script src="{{ url_for('static', filename='js/app.js') }}" defer></script>
+</head>
+<body>
+    <header class="topbar">
+        <div class="brand">
+            <span class="flame">🔥</span>
+            <div>
+                {{ app_name }}
+                <small>Fire &amp; smoke detection</small>
+            </div>
+        </div>
+        <nav class="nav">
+            <a href="{{ url_for('web.dashboard') }}" class="{{ 'active' if page == 'dashboard' else '' }}">Dashboard</a>
+            <a href="{{ url_for('web.history') }}" class="{{ 'active' if page == 'history' else '' }}">Incident history</a>
+            <a href="{{ url_for('api.health_check') }}">API</a>
+        </nav>
+    </header>
+
+    <main>
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="flash {{ category }}">{{ message }}</div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        {% block content %}{% endblock %}
+    </main>
+
+    <footer>
+        <span>{{ app_name }} v{{ app_version }} · local monitoring prototype</span>
+        <span>Not a certified fire alarm system</span>
+    </footer>
+</body>
+</html>

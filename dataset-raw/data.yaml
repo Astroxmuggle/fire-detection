@@ -1,0 +1,20 @@
+# Training configuration TEMPLATE.
+#
+# The dataset itself (~400 MB) is deliberately not shipped with this repository.
+# Point these paths at your local YOLO export, or pass a different data.yaml to
+# training/train.py:
+#
+#   python training/train.py --data "<path>\data.yaml" --epochs 50
+#
+# The checkpoint in models/best.pt was trained on the Roboflow
+# "Fire-Smoke Detection" export (CC BY 4.0):
+#   10,589 train / 1,017 valid / 521 test images, classes {0: fire, 1: smoke}
+
+train: ../train/images
+val: ../valid/images
+test: ../test/images
+
+nc: 2
+names:
+  0: fire
+  1: smoke

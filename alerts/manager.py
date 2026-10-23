@@ -51,6 +51,11 @@ class AlertManager:
             "status": "acknowledged" if acknowledged else "pending",
         }
         self._alert_records[alert_id] = record
+        try:
+            from services.event_bus import publish
+            publish("alert", record)
+        except Exception:
+            pass
         return record
 
     # ------------------------------------------------------------------- sound

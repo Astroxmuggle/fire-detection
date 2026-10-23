@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, Response, jsonify, request
 
 from alerts.manager import acknowledge_alert, get_alerts
 from config import Config
@@ -187,6 +187,61 @@ def event_detail(event_id):
     if event_data:
         return jsonify(event_data), 200
     return jsonify({"error": "Event not found"}), 404
+
+
+@api_bp.route("/events/stream", methods=["GET"])
+def events_stream():
+    """Server-Sent Events endpoint streaming real-time notifications with replay."""
+    from services.event_bus import BusFull, get_bus
+
+    if not Config.SSE_ENABLED:
+        return jsonify({"error": "SSE is disabled"}), 404
+
+    bus = get_bus()
+    try:
+        subscription = bus.subscribe()
+    except BusFull as exc:
+        return jsonify({"error": str(exc)}), 503
+
+    raw_last_id = request.headers.get("Last-Event-ID") or request.args.get("last_event_id")
+    last_event_id: int | None = None
+    if raw_last_id is not None:
+        try:
+            last_event_id = int(raw_last_id)
+        except ValueError:
+            pass
+
+    def generate():
+        try:
+            if last_event_id is not None:
+                missed, gap = bus.replay_since(last_event_id)
+                if gap:
+                    yield "event: resync\ndata: {}\n\n"
+                for event in missed:
+                    yield event.to_sse()
+
+            while not subscription.closed:
+                lag = subscription.consume_lag()
+                if lag:
+                    yield "event: resync\ndata: {}\n\n"
+
+                event = subscription.get(timeout=Config.SSE_HEARTBEAT_SECONDS)
+                if event is not None:
+                    yield event.to_sse()
+                else:
+                    yield ": heartbeat\n\n"
+        finally:
+            subscription.close()
+
+    return Response(
+        generate(),
+        mimetype="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 
 @api_bp.route("/alerts", methods=["GET"])

@@ -234,8 +234,24 @@ async function refreshAll() {
     }
 }
 
+function wireSSE() {
+    if (!window.EventSource) return;
+    try {
+        const source = new EventSource("/api/events/stream");
+        source.addEventListener("event", () => refreshAll());
+        source.addEventListener("alert", () => refreshAlerts());
+        source.addEventListener("resync", () => refreshAll());
+        source.onerror = () => {
+            // Connection loss: transparent fallback to the existing REFRESH_MS interval
+        };
+    } catch (e) {
+        // Fallback to polling
+    }
+}
+
 document.addEventListener("DOMContentLoaded", () => {
     wireStream();
+    wireSSE();
     refreshAll();
     window.setInterval(refreshAll, REFRESH_MS);
 });

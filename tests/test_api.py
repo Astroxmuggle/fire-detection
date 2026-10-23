@@ -159,3 +159,20 @@ def test_camera_probe_reports_offline_without_a_device(client, monkeypatch):
     payload = client.get("/api/camera/probe").json
     assert payload["camera_status"] == "offline"
     assert "no device" in payload["error"]
+
+
+def test_events_stream_connects(client, monkeypatch):
+    from config import Config
+
+    monkeypatch.setattr(Config, "SSE_HEARTBEAT_SECONDS", 0.05)
+    response = client.get("/api/events/stream", buffered=False)
+    assert response.status_code == 200
+    assert "text/event-stream" in response.headers["Content-Type"]
+
+
+def test_events_stream_respects_disabled_flag(client, monkeypatch):
+    from config import Config
+
+    monkeypatch.setattr(Config, "SSE_ENABLED", False)
+    response = client.get("/api/events/stream")
+    assert response.status_code == 404

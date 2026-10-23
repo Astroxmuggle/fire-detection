@@ -86,6 +86,19 @@ def create_confirmed_event(
     if play_sound:
         manager.notify(alert_level)
 
+    try:
+        from services.event_bus import publish
+        publish("event", {
+            "id": event_id,
+            "class_name": str(class_name),
+            "confidence": float(confidence),
+            "camera_source": str(camera_source),
+            "alert_status": str(alert_status),
+            "has_evidence": snapshot_path is not None,
+        })
+    except Exception:
+        pass
+
     return event_id
 
 

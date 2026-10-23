@@ -154,3 +154,12 @@ class Config:
     WORKER_RECONNECT_MAX_SECONDS = _env_float("WORKER_RECONNECT_MAX_SECONDS", 30.0)
     # Start monitoring every enabled camera at application boot.
     MONITORING_AUTOSTART = _env_bool("MONITORING_AUTOSTART", False)
+
+    # -------------------------------------------------------------------- SSE
+    # Server-Sent Events use an in-process bus: supported with a single server
+    # process. Use threads (gunicorn --threads) rather than processes.
+    SSE_ENABLED = _env_bool("SSE_ENABLED", True)
+    SSE_HEARTBEAT_SECONDS = _env_float("SSE_HEARTBEAT_SECONDS", 15.0)
+    SSE_QUEUE_SIZE = _env_int("SSE_QUEUE_SIZE", 100)
+    SSE_MAX_SUBSCRIBERS = _env_int("SSE_MAX_SUBSCRIBERS", 16)
+    SSE_REPLAY_BUFFER = _env_int("SSE_REPLAY_BUFFER", 256)

@@ -17,10 +17,13 @@ from services.camera_registry import (
 )
 from services.camera_service import (
     CameraError,
+    is_monitoring,
     is_stream_active,
     open_camera,
     parse_camera_source,
+    start_monitoring,
     stop_stream,
+    worker_status,
 )
 from services.event_service import get_event_by_id, get_event_stats, get_events, reset_alert_manager
 from services.metrics_service import get_metrics
@@ -42,6 +45,9 @@ def camera_views() -> list:
             **camera.as_dict(),
             "status": state.get("status", "unknown"),
             "stream_active": state.get("stream_active", False),
+            "worker_state": state.get("worker_state"),
+            "monitoring": state.get("monitoring", False),
+            "worker": state.get("worker", {}),
             "frames_processed": state.get("frames_processed", 0),
             "frames_skipped": state.get("frames_skipped", 0),
             "last_frame_age_seconds": state.get("last_frame_age_seconds"),
@@ -77,6 +83,8 @@ def status():
         "cameras": camera_views(),
         "stream_active": runtime["stream_active"],
         "active_streams": runtime["active_streams"],
+        "monitoring_active": runtime.get("monitoring_active", 0),
+        "workers": worker_status(),
         "model_status": "loaded" if runtime["model_loaded"] else "not loaded",
         "model_path": runtime["model_path"],
         "model_classes": runtime["model_classes"],
@@ -122,8 +130,8 @@ def update_camera(camera_id):
 
     payload = request.get_json(silent=True) or {}
     if "enabled" in payload:
-        if is_stream_active(camera_id) and not payload["enabled"]:
-            return jsonify({"error": "Stop the stream before disabling this camera"}), 409
+        if (is_stream_active(camera_id) or is_monitoring(camera_id)) and not payload["enabled"]:
+            return jsonify({"error": "Stop monitoring before disabling this camera"}), 409
         set_camera_enabled(camera_id, bool(payload["enabled"]))
 
     return jsonify({"camera": get_camera(camera_id).as_dict()}), 200
@@ -134,11 +142,37 @@ def remove_camera(camera_id):
     camera = get_camera(camera_id)
     if camera is None:
         return jsonify({"error": "Camera not found"}), 404
-    if is_stream_active(camera_id):
-        return jsonify({"error": "Stop the stream before deleting this camera"}), 409
+    if is_stream_active(camera_id) or is_monitoring(camera_id):
+        return jsonify({"error": "Stop the stream or monitoring before deleting this camera"}), 409
 
     delete_camera(camera_id)
     return jsonify({"deleted": camera_id}), 200
+
+
+@api_bp.route("/cameras/<int:camera_id>/monitoring/start", methods=["POST"])
+def start_camera_monitoring(camera_id):
+    """Start the background worker for a camera without attaching a viewer."""
+    if get_camera(camera_id) is None:
+        return jsonify({"error": "Camera not found"}), 404
+
+    try:
+        worker = start_monitoring(camera_id)
+    except CameraError as exc:
+        return jsonify({"error": str(exc), "camera_id": camera_id}), 503
+    except FileNotFoundError as exc:
+        return jsonify({"error": str(exc), "hint": "Train or copy a model into models/best.pt."}), 503
+
+    return jsonify({"camera_id": camera_id, "worker": worker.stats()}), 200
+
+
+@api_bp.route("/workers", methods=["GET"])
+def workers():
+    """Health of every background inference worker."""
+    runtime = get_runtime_status().snapshot()
+    return jsonify({
+        "workers": worker_status(),
+        "monitoring_active": runtime.get("monitoring_active", 0),
+    }), 200
 
 
 @api_bp.route("/events", methods=["GET"])

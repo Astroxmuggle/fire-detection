@@ -65,7 +65,7 @@ def isolated_app_storage(monkeypatch):
     saved_config = {name: getattr(Config, name) for name in MUTABLE_CONFIG}
     workdir = make_temp_dir("case")
 
-    camera_service.stop_stream()
+    camera_service.stop_all_monitoring()
     camera_service._active_streams.clear()
 
     monkeypatch.setattr(db, "DATABASE_PATH", workdir / "test.db")

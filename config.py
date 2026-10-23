@@ -144,3 +144,13 @@ class Config:
     # ------------------------------------------------------------------- misc
     STREAM_JPEG_QUALITY = _env_int("STREAM_JPEG_QUALITY", 70)
     EVENT_RETENTION_DAYS = _env_int("EVENT_RETENTION_DAYS", 0)  # 0 = keep forever
+
+    # ----------------------------------------------------------------- workers
+    # Background inference worker. Monitoring runs without any browser attached;
+    # frames are queued in a bounded buffer and the oldest is dropped under load.
+    WORKER_FPS_LIMIT = _env_float("WORKER_FPS_LIMIT", 15.0)
+    WORKER_QUEUE_SIZE = _env_int("WORKER_QUEUE_SIZE", 8)
+    WORKER_RECONNECT_SECONDS = _env_float("WORKER_RECONNECT_SECONDS", 2.0)
+    WORKER_RECONNECT_MAX_SECONDS = _env_float("WORKER_RECONNECT_MAX_SECONDS", 30.0)
+    # Start monitoring every enabled camera at application boot.
+    MONITORING_AUTOSTART = _env_bool("MONITORING_AUTOSTART", False)

@@ -152,7 +152,7 @@ while it is streaming.
 & "C:\Users\manna_2c83x\fire-detection-ai\.venv\Scripts\python.exe" -m pytest
 ```
 
-The suite (78 tests) runs against a **temporary database and evidence directory**
+The suite (91 tests) runs against a **temporary database and evidence directory**
 created per test by `conftest.py`; it never touches `fire_detection.db` or
 `snapshots/`.
 
@@ -202,6 +202,14 @@ but a retrain on hard negatives plus more smoke data is the real fix — see
 ## Project layout
 
 ```
+adapters/
+  model/base.py         model-adapter contract (ModelInfo, Prediction)
+  model/yolo.py         Ultralytics implementation (unchanged inference call)
+  video/base.py         video-source contract + source classification
+  video/opencv.py       webcam / RTSP / file capture
+workers/
+  inference_worker.py   bounded per-camera loop: reader + processor + frame buffer
+  manager.py            one worker per camera, lifecycle and health
 app.py                  Flask app factory, logging, error handlers
 config.py               .env loader + every tunable
 conftest.py             per-test isolation (temp DB + temp evidence dir)
@@ -224,7 +232,7 @@ services/
   status_service.py     live runtime state (per camera + aggregate)
   evaluation_service.py precision/recall/F1 helpers
 templates/              dashboard, history, incident detail, error page
-tests/                  78 tests
+tests/                  91 tests
 training/train.py       training entry point
 evaluation/run_eval.py  validation + negative-set harness
 deploy/                 systemd unit + Windows launcher

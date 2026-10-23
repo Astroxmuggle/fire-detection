@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import atexit
 import logging
 from logging.handlers import RotatingFileHandler
 
@@ -11,7 +12,8 @@ from config import Config
 from database.db import init_db
 from routes.api import api_bp
 from routes.web import web_bp
-from services.camera_registry import sync_from_config
+from services.camera_registry import list_cameras, sync_from_config
+from services.camera_service import start_monitoring, stop_all_monitoring
 
 
 def configure_logging(level: str | None = None) -> logging.Logger:
@@ -61,6 +63,9 @@ def create_app(config_object=Config) -> Flask:
     # Seed the camera registry from configuration on first start.
     sync_from_config()
 
+    if Config.MONITORING_AUTOSTART:
+        autostart_monitoring()
+
     app.register_blueprint(api_bp, url_prefix="/api")
     app.register_blueprint(web_bp)
 
@@ -81,6 +86,17 @@ def create_app(config_object=Config) -> Flask:
         Config.MODEL_PATH,
     )
     return app
+
+
+def autostart_monitoring() -> None:
+    """Start a background worker for every enabled camera (opt-in)."""
+    logger = logging.getLogger("firewatch")
+    for camera in list_cameras():
+        try:
+            start_monitoring(camera.id)
+            logger.info("monitoring started for camera %s (%s)", camera.id, camera.name)
+        except Exception as exc:  # noqa: BLE001 - one bad camera must not stop boot
+            logger.warning("monitoring did not start for camera %s: %s", camera.id, exc)
 
 
 def register_error_handlers(app: Flask) -> None:
@@ -108,6 +124,9 @@ def _wants_html() -> bool:
 
 
 app = create_app()
+
+# Release cameras and worker threads on interpreter shutdown.
+atexit.register(stop_all_monitoring)
 
 
 if __name__ == "__main__":

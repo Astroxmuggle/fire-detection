@@ -47,6 +47,9 @@ class RuntimeStatus:
                 "status": UNKNOWN,
                 "error": None,
                 "stream_active": False,
+                "worker_state": None,
+                "monitoring": False,
+                "worker": {},
                 "frames_processed": 0,
                 "frames_skipped": 0,
                 "last_frame_at": None,
@@ -79,6 +82,28 @@ class RuntimeStatus:
     def mark_stream(self, camera_id, active: bool):
         with self._lock:
             self._bucket(camera_id)["stream_active"] = bool(active)
+
+    def set_worker(
+        self,
+        camera_id,
+        state: str,
+        error: Optional[str] = None,
+        stats: Optional[dict] = None,
+    ):
+        """Record background-worker health for one camera.
+
+        ``worker_state`` is the explicit lifecycle value (starting / running /
+        degraded / stopped / failed) that the API exposes next to the coarser
+        camera status.
+        """
+        with self._lock:
+            bucket = self._bucket(camera_id)
+            bucket["worker_state"] = str(state)
+            bucket["monitoring"] = str(state) in {"starting", "running", "degraded"}
+            if stats is not None:
+                bucket["worker"] = dict(stats)
+            if error is not None:
+                bucket["error"] = error
 
     def mark_frame(self, camera_id=None, skipped: bool = False):
         with self._lock:
@@ -136,6 +161,7 @@ class RuntimeStatus:
             "camera_error": primary["error"] if primary else None,
             "stream_active": bool(active),
             "active_streams": len(active),
+            "monitoring_active": sum(1 for camera in cameras if camera.get("monitoring")),
             "cameras": cameras,
             "uptime_seconds": round(time.time() - state["started_at"], 1),
             "last_frame_age_seconds": (

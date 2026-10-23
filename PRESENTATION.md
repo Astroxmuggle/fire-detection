@@ -11,7 +11,7 @@
   1. Real-world engineering balance: High-accuracy detection running smoothly on CPU without requiring an expensive dedicated GPU.
   2. Algorithmic rigor: Going beyond raw single-frame YOLO inference by implementing a **Temporal Confirmation Tracker** to suppress transient false alarms.
   3. Hard-negative scientific validation: Stress-testing with the benchmark **FIRESENSE** dataset.
-  4. Software engineering standards: Modular architecture, SQLite persistence, automated test suite (62 passing unit/integration tests), and Flask web dashboard.
+  4. Software engineering standards: Modular architecture, SQLite persistence, automated test suite (78 passing unit/integration tests), and Flask web dashboard.
 
 ---
 
@@ -248,7 +248,7 @@
 │ SLIDE 9: Software Engineering & Verification (Testing)                 │
 ├────────────────────────────────────────────────────────────────────────┤
 │ • Automated Testing with Pytest:                                       │
-│   - 62 Unit & Integration Tests Passing.                               │
+│   - 78 Unit & Integration Tests Passing.                               │
 │ • What is Tested:                                                      │
 │   ✔ Detection post-processing, per-class thresholds & NMS filtering.   │
 │   ✔ ConfirmationTracker latch, re-arm and fire+smoke independence.     │
@@ -263,7 +263,7 @@
 ### 🗣️ Speaker Script (1:00 min)
 > *"To ensure academic and industry-grade software reliability, the entire codebase was built under test-driven principles.*
 >
-> *We have an automated test suite of **62 comprehensive tests** written with Pytest, covering:*
+> *We have an automated test suite of **78 comprehensive tests** written with Pytest, covering:*
 > *- Mathematical correctness of IoU and NMS suppression,*
 > *- Latch, re-arm and multi-class behaviour of the temporal confirmation tracker,*
 > *- The blank-frame guard and bounding-box sanity filters,*
@@ -338,7 +338,7 @@
 │   ✔ Trained YOLO11n model achieving 68.5% mAP@50 and 71.2% Precision.  │
 │   ✔ Temporal Confirmation Engine preventing single-frame false alarms. │
 │   ✔ Evidence snapshotting & SQLite transactional database.             │
-│   ✔ Complete Flask dashboard & RESTful API with 62 passing tests.      │
+│   ✔ Complete Flask dashboard & RESTful API with 78 passing tests.      │
 │   ✔ Stress-tested against FIRESENSE benchmark dataset.                 │
 │                                                                        │
 │                Thank You for Your Time and Attention!                  │

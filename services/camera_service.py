@@ -1,16 +1,17 @@
-"""Camera capture and the live detection stream.
+"""Camera capture and live detection streams.
 
-The stream is modelled as an object so that every failure that can happen
-*before* the first frame (missing model, unplugged camera, busy device) is
-raised synchronously. That is what lets the HTTP layer answer 503 instead of
-returning a 200 and then dying halfway through the multipart body.
+Each camera in the registry can own one capture session. Sessions are objects so
+every failure that can happen *before* the first frame (missing model, unplugged
+camera, busy device) is raised synchronously — that is what lets the HTTP layer
+answer 503 instead of returning a 200 and then dying halfway through the
+multipart body.
 """
 
 from __future__ import annotations
 
 import os
 import threading
-from typing import Iterator, Optional
+from typing import Dict, Iterator, List, Optional
 
 import cv2
 from ultralytics import YOLO
@@ -18,8 +19,9 @@ from ultralytics import YOLO
 from config import Config
 from detection.frame_guard import annotate_skipped_frame, is_informative_frame
 from detection.manager import DetectionManager
+from services.camera_registry import Camera, resolve_camera, sync_from_config
 from services.event_service import create_confirmed_event
-from services.status_service import get_runtime_status
+from services.status_service import OFFLINE, ONLINE, get_runtime_status
 
 
 class CameraError(RuntimeError):
@@ -31,7 +33,7 @@ class CameraUnavailable(CameraError):
 
 
 class StreamBusy(CameraError):
-    """Another capture session already owns the device."""
+    """That camera already has an active capture session."""
 
 
 def parse_camera_source(value=None):
@@ -91,12 +93,14 @@ def _results_to_detections(results):
 class CameraStream:
     """One live capture session: model + camera + detection state."""
 
-    def __init__(self, model_path=None, camera_source=None, confidence_threshold=None):
+    def __init__(self, camera: Camera, model_path=None, confidence_threshold=None):
+        self.camera_id = camera.id
+        self.camera_name = camera.name
         self.model_path = str(model_path or Config.MODEL_PATH)
         if not os.path.isfile(self.model_path):
             raise FileNotFoundError(f"Model not found at {self.model_path}")
 
-        self.source = parse_camera_source(camera_source)
+        self.source = parse_camera_source(camera.source)
         self.status = get_runtime_status()
         self.closed = False
         self.frames_yielded = 0
@@ -105,17 +109,19 @@ class CameraStream:
         self.class_names = list(getattr(self.model, "names", {}).values())
         self.status.set_model(True, self.model_path, self.class_names)
 
-        self.camera = open_camera(self.source)
-        self.status.set_camera("online", self.source)
+        self.capture = open_camera(camera.source)
+        self.status.set_camera(self.camera_id, ONLINE, self.source, name=self.camera_name)
 
         self.confidence_threshold = float(
             Config.CONFIDENCE_THRESHOLD if confidence_threshold is None else confidence_threshold
         )
         self.manager = DetectionManager(confidence_threshold=self.confidence_threshold)
         self.jpeg_quality = int(Config.STREAM_JPEG_QUALITY)
-        self.camera_label = (
-            f"camera:{self.source}" if isinstance(self.source, int) else str(self.source)
-        )
+        self.camera_label = self._camera_label()
+
+    def _camera_label(self) -> str:
+        base = f"camera:{self.source}" if isinstance(self.source, int) else str(self.source)
+        return base if self.camera_id <= 1 else f"{base}#{self.camera_id}"
 
     # ------------------------------------------------------------------ helpers
     def _confirm_and_store(self, detections, annotated_frame) -> int:
@@ -149,16 +155,18 @@ class CameraStream:
 
     # ------------------------------------------------------------------- frames
     def frames(self) -> Iterator[bytes]:
-        self.status.mark_stream(True)
+        self.status.mark_stream(self.camera_id, True)
         try:
             while not self.closed:
-                ok, frame = self.camera.read()
+                ok, frame = self.capture.read()
                 if not ok or frame is None:
-                    self.status.set_camera("offline", self.source, "Frame capture failed")
+                    self.status.set_camera(
+                        self.camera_id, OFFLINE, self.source, "Frame capture failed", name=self.camera_name
+                    )
                     break
 
                 if not is_informative_frame(frame, Config.MIN_FRAME_STD):
-                    self.status.mark_frame(skipped=True)
+                    self.status.mark_frame(self.camera_id, skipped=True)
                     annotated_frame = annotate_skipped_frame(frame)
                 else:
                     results = self.model(
@@ -169,7 +177,7 @@ class CameraStream:
                     )
                     annotated_frame = self._annotate(frame, results)
                     self._confirm_and_store(_results_to_detections(results), annotated_frame)
-                    self.status.mark_frame()
+                    self.status.mark_frame(self.camera_id)
 
                 payload = self._encode(annotated_frame)
                 if payload is None:
@@ -190,71 +198,104 @@ class CameraStream:
             return
         self.closed = True
         try:
-            self.camera.release()
+            self.capture.release()
         except Exception:  # noqa: BLE001 - release must never raise
             pass
-        self.status.set_camera("offline", self.source)
-        self.status.mark_stream(False)
+        self.status.set_camera(self.camera_id, OFFLINE, self.source, name=self.camera_name)
+        self.status.mark_stream(self.camera_id, False)
         release_stream(self)
 
 
-# ------------------------------------------------------------------ registry
+# -------------------------------------------------------------------- registry
 _stream_lock = threading.Lock()
-_active_stream: Optional[CameraStream] = None
+_active_streams: Dict[int, CameraStream] = {}
 
 
-def start_stream(model_path=None, camera_source=None, confidence_threshold=None) -> CameraStream:
-    """Open a capture session or raise a descriptive error."""
-    global _active_stream
+def _resolve_camera_or_raise(camera_id=None) -> Camera:
+    camera = resolve_camera(camera_id)
+    if camera is None:
+        sync_from_config()
+        camera = resolve_camera(camera_id)
+    if camera is None:
+        raise CameraUnavailable(
+            f"No camera configured (requested id={camera_id!r}). Set CAMERA_SOURCE or add one via the registry."
+        )
+    if not camera.enabled:
+        raise CameraUnavailable(f"Camera {camera.id} ({camera.name}) is disabled")
+    return camera
+
+
+def start_stream(camera_id=None, model_path=None, confidence_threshold=None) -> CameraStream:
+    """Open a capture session for one camera, or raise a descriptive error."""
+    camera = _resolve_camera_or_raise(camera_id)
 
     with _stream_lock:
-        if _active_stream is not None and not _active_stream.closed:
-            raise StreamBusy("A capture session is already running")
+        existing = _active_streams.get(camera.id)
+        if existing is not None and not existing.closed:
+            raise StreamBusy(f"Camera {camera.id} ({camera.name}) is already streaming")
 
         try:
             stream = CameraStream(
+                camera,
                 model_path=model_path,
-                camera_source=camera_source,
                 confidence_threshold=confidence_threshold,
             )
         except CameraUnavailable as exc:
-            get_runtime_status().set_camera("offline", camera_source, str(exc))
+            get_runtime_status().set_camera(camera.id, OFFLINE, camera.source, str(exc), name=camera.name)
             raise
         except Exception as exc:
             get_runtime_status().record_error(str(exc))
             raise
 
-        _active_stream = stream
+        _active_streams[camera.id] = stream
         return stream
 
 
 def release_stream(stream: Optional[CameraStream] = None) -> None:
-    global _active_stream
     with _stream_lock:
-        if _active_stream is not None and (stream is None or _active_stream is stream):
-            _active_stream = None
+        if stream is None:
+            _active_streams.clear()
+            return
+        if _active_streams.get(stream.camera_id) is stream:
+            _active_streams.pop(stream.camera_id, None)
 
 
-def is_stream_active() -> bool:
+def is_stream_active(camera_id=None) -> bool:
     with _stream_lock:
-        return _active_stream is not None and not _active_stream.closed
+        if camera_id is None:
+            return any(not stream.closed for stream in _active_streams.values())
+        stream = _active_streams.get(int(camera_id))
+        return stream is not None and not stream.closed
 
 
-def stop_stream() -> bool:
+def active_camera_ids() -> List[int]:
     with _stream_lock:
-        stream = _active_stream
-    if stream is None:
-        return False
-    stream.close()
-    return True
+        return sorted(cid for cid, stream in _active_streams.items() if not stream.closed)
+
+
+def stop_stream(camera_id=None) -> int:
+    """Stop one camera's session, or all of them. Returns how many were stopped."""
+    with _stream_lock:
+        if camera_id is None:
+            streams = list(_active_streams.values())
+        else:
+            stream = _active_streams.get(int(camera_id))
+            streams = [stream] if stream is not None else []
+
+    stopped = 0
+    for stream in streams:
+        if stream is not None and not stream.closed:
+            stream.close()
+            stopped += 1
+    return stopped
 
 
 # ------------------------------------------------------------------ legacy API
 def generate_stream(model_path=None, camera_index=None, confidence_threshold=None):
     """Backwards-compatible generator wrapper around :class:`CameraStream`."""
     stream = start_stream(
+        camera_id=camera_index,
         model_path=model_path,
-        camera_source=camera_index,
         confidence_threshold=confidence_threshold,
     )
     yield from stream.frames()

@@ -11,6 +11,7 @@ from config import Config
 from database.db import init_db
 from routes.api import api_bp
 from routes.web import web_bp
+from services.camera_registry import sync_from_config
 
 
 def configure_logging(level: str | None = None) -> logging.Logger:
@@ -56,6 +57,9 @@ def create_app(config_object=Config) -> Flask:
 
     init_db()
     configure_logging()
+
+    # Seed the camera registry from configuration on first start.
+    sync_from_config()
 
     app.register_blueprint(api_bp, url_prefix="/api")
     app.register_blueprint(web_bp)

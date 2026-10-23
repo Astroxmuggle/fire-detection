@@ -143,7 +143,8 @@ def test_metrics_endpoint_reflects_database(client):
 def test_stream_stop_is_idempotent(client):
     response = client.post("/api/stream/stop")
     assert response.status_code == 200
-    assert response.json["stopped"] is False
+    assert response.json["stopped"] == 0
+    assert response.json["stream_active"] is False
 
 
 def test_camera_probe_reports_offline_without_a_device(client, monkeypatch):

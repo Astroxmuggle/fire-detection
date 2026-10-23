@@ -1,0 +1,39 @@
+services:
+  firewatch:
+    build: .
+    image: firewatch-ai:latest
+    container_name: firewatch-ai
+    ports:
+      - "5000:5000"
+    environment:
+      # Webcam index works on a Linux host with the device mapping below.
+      # On Docker Desktop for Windows use an RTSP URL instead.
+      CAMERA_SOURCE: ${CAMERA_SOURCE:-0}
+      CONFIDENCE_THRESHOLD: ${CONFIDENCE_THRESHOLD:-0.50}
+      FIRE_CONFIDENCE_THRESHOLD: ${FIRE_CONFIDENCE_THRESHOLD:-0.50}
+      SMOKE_CONFIDENCE_THRESHOLD: ${SMOKE_CONFIDENCE_THRESHOLD:-0.55}
+      ALERT_SOUND_ENABLED: "False"
+      LOGGING_LEVEL: ${LOGGING_LEVEL:-INFO}
+    volumes:
+      # Database, evidence snapshots and logs all live here.
+      - firewatch-data:/data
+    restart: unless-stopped
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import sys,urllib.request; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:5000/api/health', timeout=3).status == 200 else 1)"
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    # Webcam passthrough (Linux host only):
+    # devices:
+    #   - /dev/video0:/dev/video0
+    #
+    # Put the dashboard behind an authenticating reverse proxy before exposing
+    # it: the application itself has no user accounts.
+
+volumes:
+  firewatch-data:

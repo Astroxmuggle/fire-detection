@@ -146,6 +146,42 @@ function hideOverlay() {
     if (overlay) overlay.classList.remove("visible");
 }
 
+function selectedCameraId() {
+    const select = document.getElementById("camera-select");
+    return select && select.value ? select.value : "";
+}
+
+async function refreshCameras() {
+    const select = document.getElementById("camera-select");
+    if (!select) return;
+
+    let cameras = [];
+    try {
+        const payload = await fetchJson("/api/cameras");
+        cameras = payload.cameras || [];
+    } catch (error) {
+        return;
+    }
+
+    if (cameras.length <= 1) {
+        select.style.display = "none";
+        return;
+    }
+
+    const previous = select.value;
+    select.replaceChildren();
+    cameras.forEach((camera) => {
+        const option = el("option", {
+            text: `${camera.name} (${camera.source})${camera.enabled ? "" : " — disabled"}`,
+            attrs: { value: camera.id },
+        });
+        option.disabled = !camera.enabled;
+        select.appendChild(option);
+    });
+    if (previous) select.value = previous;
+    select.style.display = "";
+}
+
 function wireStream() {
     const feed = document.getElementById("video-feed");
     const startButton = document.getElementById("btn-start");
@@ -166,14 +202,21 @@ function wireStream() {
 
     startButton.addEventListener("click", () => {
         hideOverlay();
-        feed.src = `/video_feed?_=${Date.now()}`;
+        const cameraId = selectedCameraId();
+        const suffix = cameraId ? `camera=${encodeURIComponent(cameraId)}&` : "";
+        feed.src = `/video_feed?${suffix}_=${Date.now()}`;
         setBadge("stream-badge", "Stream: starting", "unknown");
     });
 
     stopButton.addEventListener("click", async () => {
         feed.removeAttribute("src");
+        const cameraId = selectedCameraId();
         try {
-            await fetch("/api/stream/stop", { method: "POST" });
+            await fetch("/api/stream/stop", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(cameraId ? { camera_id: Number(cameraId) } : {}),
+            });
         } catch (error) {
             /* the capture may already be closed */
         }
@@ -183,7 +226,7 @@ function wireStream() {
 }
 
 async function refreshAll() {
-    const tasks = [refreshStatus(), refreshAlerts(), refreshEvents()];
+    const tasks = [refreshStatus(), refreshAlerts(), refreshEvents(), refreshCameras()];
     const results = await Promise.allSettled(tasks);
     const failure = results.find((result) => result.status === "rejected");
     if (failure) {

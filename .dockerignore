@@ -1,0 +1,42 @@
+# Version control and local environments
+.git
+.gitignore
+.gitattributes
+.venv
+venv
+env
+__pycache__
+*.py[cod]
+.pytest_cache
+.cache
+.mypy_cache
+.ruff_cache
+
+# Secrets and local overrides
+.env
+.env.*
+
+# Runtime state (mounted as a volume instead)
+fire_detection.db
+fire_detection.db-*
+*.sqlite
+*.sqlite3
+backups/
+logs/
+snapshots/
+data/
+
+# Generated presentation artefacts
+*.pptx
+download.html
+
+# Evaluation data and plots (large, not needed at runtime)
+evaluation/datasets/
+evaluation/reports/runs/
+
+# Editors / OS
+.vscode
+.idea
+.DS_Store
+Thumbs.db
+desktop.ini

@@ -16,6 +16,7 @@ from flask import (
 )
 
 from alerts.manager import acknowledge_alerts_for_event, get_alerts_for_event
+from services.camera_registry import get_camera
 from services.camera_service import CameraError, StreamBusy, start_stream
 from services.event_service import get_event_by_id, get_events
 from services.evidence_service import resolve_evidence_path
@@ -44,15 +45,19 @@ def history():
 
 @web_bp.route("/video_feed")
 def video_feed():
-    """Start the capture session and stream it as multipart JPEG."""
+    """Start a capture session for one camera and stream it as multipart JPEG."""
+    camera_id = request.args.get("camera", type=int)
+    if camera_id is not None and get_camera(camera_id) is None:
+        return jsonify({"error": f"Camera {camera_id} not found"}), 404
+
     try:
-        stream = start_stream()
+        stream = start_stream(camera_id=camera_id)
     except StreamBusy as exc:
         return jsonify({"error": str(exc), "hint": "Stop the other viewer first."}), 409
     except FileNotFoundError as exc:
         return jsonify({"error": str(exc), "hint": "Train or copy a model into models/best.pt."}), 503
     except CameraError as exc:
-        return jsonify({"error": str(exc), "hint": "Check the camera source in .env."}), 503
+        return jsonify({"error": str(exc), "hint": "Check the camera source in .env or the camera registry."}), 503
     except Exception as exc:  # noqa: BLE001 - never leak a stack trace to the page
         return jsonify({"error": str(exc)}), 503
 

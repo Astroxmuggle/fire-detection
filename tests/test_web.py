@@ -106,17 +106,21 @@ def test_video_feed_returns_409_when_stream_is_busy(client, monkeypatch):
     import services.camera_service as camera_service
 
     class BusyStream:
+        camera_id = 1
         closed = False
 
-        def release(self):
-            self.closed = True
-
-    camera_service._active_stream = BusyStream()
+    camera_service._active_streams[1] = BusyStream()
     try:
         response = client.get("/video_feed")
         assert response.status_code == 409
     finally:
-        camera_service._active_stream = None
+        camera_service._active_streams.clear()
+
+
+def test_video_feed_rejects_unknown_camera(client):
+    response = client.get("/video_feed?camera=424242")
+    assert response.status_code == 404
+    assert "not found" in response.json["error"]
 
 
 def test_unknown_page_returns_html_404(client):

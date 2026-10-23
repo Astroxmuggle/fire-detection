@@ -45,6 +45,8 @@ Design decisions that matter:
   JSON `503`, not a 200 followed by a broken stream.
 * **Honest status.** `/api/status` reports what actually happened (camera state,
   model state, frames analysed, frames skipped), not hard-coded strings.
+* **Multi-camera registry.** Cameras are rows in SQLite; each one can stream
+  independently and `/video_feed?camera=<id>` selects which feed to watch.
 
 ---
 
@@ -86,6 +88,7 @@ variable wins). The full list with defaults lives in `.env.example`.
 | `LOG_DIR` | `logs/` | Rotating log files (`firewatch.log`, 2 MB × 5). |
 | `MODEL_PATH` | `models/best.pt` | YOLO checkpoint. |
 | `CAMERA_SOURCE` | `0` | Webcam index, `rtsp://…` URL or video file. |
+| `CAMERA_SOURCES` | *(unset)* | Comma/semicolon separated list that seeds the camera registry. |
 | `CONFIDENCE_THRESHOLD` | `0.50` | Fallback threshold for classes without an entry. |
 | `FIRE_CONFIDENCE_THRESHOLD` | `0.50` | Fire-specific threshold. |
 | `SMOKE_CONFIDENCE_THRESHOLD` | `0.55` | Smoke-specific threshold. |
@@ -105,6 +108,21 @@ $env:CAMERA_SOURCE = "rtsp://user:pass@192.168.1.20:554/Streaming/Channels/101"
 $env:CAMERA_SOURCE = "C:\clips\fire-demo.mp4"
 ```
 
+### Multiple cameras
+
+Cameras live in the `cameras` table and are seeded on first start from
+`CAMERA_SOURCES` (or from `CAMERA_SOURCE` for a single one). Every camera can
+stream at the same time; the dashboard shows a selector when more than one
+exists.
+
+```powershell
+$env:CAMERA_SOURCES = "0,rtsp://192.168.1.20:554/Streaming/Channels/101"
+```
+
+Manage them at runtime through `/api/cameras`, and select a stream with
+`GET /video_feed?camera=<id>`. A camera can be disabled or deleted — but not
+while it is streaming.
+
 ---
 
 ## REST API
@@ -119,9 +137,11 @@ $env:CAMERA_SOURCE = "C:\clips\fire-demo.mp4"
 | `POST` | `/api/alerts/<id>/acknowledge` | Acknowledge one alert. |
 | `GET` | `/api/metrics` | DB-derived counts + live counters. |
 | `GET`/`PUT` | `/api/settings` | Read / update tuning values (applies to new capture sessions). |
-| `GET` | `/api/camera/probe` | Try to open the configured camera once. |
-| `POST` | `/api/stream/stop` | Release the camera. |
-| `GET` | `/video_feed` | MJPEG stream (`503` when the camera is unavailable, `409` when busy). |
+| `GET`/`POST` | `/api/cameras` | List cameras with live state / add one. |
+| `PATCH`/`DELETE` | `/api/cameras/<id>` | Enable or disable / remove a camera. |
+| `GET` | `/api/camera/probe` | Try to open the configured (or `?camera_id=`) camera once. |
+| `POST` | `/api/stream/stop` | Release one camera (`{"camera_id": 1}`) or all of them. |
+| `GET` | `/video_feed` | MJPEG stream, `?camera=<id>`; `503` when unavailable, `409` when busy. |
 | `GET` | `/history`, `/incident/<id>`, `/evidence/<id>` | Dashboard pages and evidence image. |
 
 ---
@@ -132,7 +152,7 @@ $env:CAMERA_SOURCE = "C:\clips\fire-demo.mp4"
 & "C:\Users\manna_2c83x\fire-detection-ai\.venv\Scripts\python.exe" -m pytest
 ```
 
-The suite (62 tests) runs against a **temporary database and evidence directory**
+The suite (78 tests) runs against a **temporary database and evidence directory**
 created per test by `conftest.py`; it never touches `fire_detection.db` or
 `snapshots/`.
 
@@ -196,16 +216,20 @@ database/db.py          SQLite schema and helpers
 routes/api.py           JSON API
 routes/web.py           pages + MJPEG stream
 services/
-  camera_service.py     capture session object, fail-fast start, RTSP support
+  camera_registry.py    named camera sources (SQLite registry)
+  camera_service.py     capture sessions, fail-fast start, RTSP, multi-camera
   event_service.py      event/alert persistence and queries
   evidence_service.py   snapshot writing + safe path resolution
   metrics_service.py    DB-derived metrics
-  status_service.py     live runtime state (camera, model, frames)
+  status_service.py     live runtime state (per camera + aggregate)
   evaluation_service.py precision/recall/F1 helpers
 templates/              dashboard, history, incident detail, error page
-tests/                  62 tests
+tests/                  78 tests
 training/train.py       training entry point
 evaluation/run_eval.py  validation + negative-set harness
+deploy/                 systemd unit + Windows launcher
+Dockerfile              CPU-only image, gunicorn
+docker-compose.yml      one-command deployment with a data volume
 ```
 
 ---
@@ -223,14 +247,64 @@ checkpoint into `models/best.pt` afterwards.
 
 ---
 
+## Deployment
+
+### Docker (recommended for a server)
+
+```powershell
+docker compose up -d --build
+```
+
+or without compose:
+
+```powershell
+docker build -t firewatch-ai .
+docker run --rm -p 5000:5000 -v firewatch-data:/data `
+  -e CAMERA_SOURCE=rtsp://user:pass@host:554/stream firewatch-ai
+```
+
+The image is CPU-only and runs gunicorn with 8 threads, so the long-lived MJPEG
+response does not block the JSON API. The database, evidence frames and logs all
+live in the `firewatch-data` volume. Docker Desktop on Windows cannot pass a
+webcam into a container — use an RTSP URL there.
+
+### Linux service (systemd)
+
+```bash
+sudo useradd --system --create-home firewatch
+sudo install -d -o firewatch -g firewatch /opt/firewatch
+sudo rsync -a --exclude .venv --exclude .git ./ /opt/firewatch/
+cd /opt/firewatch
+sudo -u firewatch python3 -m venv .venv
+sudo -u firewatch .venv/bin/pip install -r requirements.txt "gunicorn==23.0.0"
+sudo cp deploy/firewatch.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now firewatch
+```
+
+The unit binds to `127.0.0.1:5000` and runs with `ProtectSystem=strict`; put
+nginx or Caddy in front if it must be reachable from the network.
+
+### Windows
+
+`deploy\run-windows.ps1` starts the app from the project virtual environment
+with the right paths. For unattended operation, register it with NSSM or Task
+Scheduler — the script's help block contains the NSSM command.
+
+> The application has no authentication. Keep `HOST=127.0.0.1`, or put an
+> authenticating reverse proxy in front of it before exposing it on a network.
+
+---
+
 ## Limitations
 
 * The model was trained without hard negatives; it still reacts to bright glare.
   Fine-tuning on `evaluation/` negatives is the highest-value next step.
 * CPU-only inference runs at roughly 5 FPS at 640×480 — fine for monitoring,
   not for fast-moving scenes. A GPU or an ONNX/OpenVINO export is the fix.
-* Single camera per process. `CAMERA_SOURCE` accepts RTSP URLs, but there is no
-  multi-camera registry.
+* Several cameras share one CPU. Every stream runs its own inference pass per
+  frame, so N cameras cost roughly N× the compute — plan one process per one or
+  two cameras on a machine without a GPU.
 * No authentication. Keep `HOST=127.0.0.1` or put the app behind a reverse proxy
   with auth before exposing it.
 * Not a certified alarm system; no emergency-service integration.

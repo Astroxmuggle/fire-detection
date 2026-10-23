@@ -59,11 +59,14 @@ def isolated_app_storage(monkeypatch):
     """Redirect storage and reset every piece of process-wide state."""
     import database.db as db
     from config import Config
-    from services import event_service, status_service
+    from services import camera_service, camera_registry, event_service, status_service
     from services.metrics_service import get_metrics_service
 
     saved_config = {name: getattr(Config, name) for name in MUTABLE_CONFIG}
     workdir = make_temp_dir("case")
+
+    camera_service.stop_stream()
+    camera_service._active_streams.clear()
 
     monkeypatch.setattr(db, "DATABASE_PATH", workdir / "test.db")
     monkeypatch.setattr(Config, "EVIDENCE_DIR", workdir / "snapshots")
@@ -71,6 +74,8 @@ def isolated_app_storage(monkeypatch):
     monkeypatch.setattr(Config, "LOG_DIR", workdir / "logs")
 
     db.init_db()
+    # One enabled camera (source "0") for every test.
+    camera_registry.sync_from_config(sources=["0"])
     event_service.reset_alert_manager()
     # Keep the configured cool-down visible to config tests, but never let it
     # suppress alerts inside a test.
@@ -81,6 +86,8 @@ def isolated_app_storage(monkeypatch):
     try:
         yield workdir
     finally:
+        camera_service.stop_stream()
+        camera_service._active_streams.clear()
         event_service.reset_alert_manager()
         status_service.reset_runtime_status()
         for name, value in saved_config.items():

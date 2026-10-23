@@ -2,7 +2,7 @@
 
 **Date:** 2026-10-23
 **Baseline:** [`PROJECT_ASSESSMENT.md`](PROJECT_ASSESSMENT.md) (pre-remediation snapshot)
-**Status:** P0 and P1 complete, verified by 62 tests, a live server run and a
+**Status:** P0 and P1 complete, verified by 78 tests, a live server run and a
 reproducible evaluation.
 
 ---
@@ -30,7 +30,7 @@ All "after" numbers were produced by the code in this repository on this machine
 | `.env` file | never loaded | loaded (dependency-free parser) |
 | Model location | absolute path outside the repo | bundled at `models/best.pt` |
 | Version control | none | Git repository, initial commit |
-| Test suite | 19 tests | **62 tests**, 8.4 s |
+| Test suite | 19 tests | **78 tests**, ~10 s |
 
 ### Held-out evaluation (521 images, 578 instances)
 
@@ -98,7 +98,7 @@ Reports land in [`evaluation/reports/`](evaluation/reports/).
 | [`app.py`](app.py) | App factory, rotating file logging, HTML/JSON-aware 404/500 handlers. |
 | [`conftest.py`](conftest.py) | **New.** Per-test temporary database + evidence directory; restores every mutable config value. |
 | [`pytest.ini`](pytest.ini) | **New** (was only in the parent folder, which broke imports when the project moved). |
-| [`tests/`](tests/) | Rewritten and expanded to 62 tests, including regression tests for every bug above. |
+| [`tests/`](tests/) | Rewritten and expanded to 78 tests, including regression tests for every bug above. |
 | [`evaluation/run_eval.py`](evaluation/run_eval.py) | **New.** Labelled metrics + negative-image scan + negative-video sequences + blank-frame probe, writes JSON and Markdown. |
 | [`training/train.py`](training/train.py) | Rewritten with a CLI, a working base model, and `--copy-to-models`. |
 | [`.gitignore`](.gitignore), [`.env.example`](.env.example), [`README.md`](README.md) | New/rewritten. |
@@ -123,7 +123,7 @@ not true were rewritten:
 * CPU throughput: "20–30 FPS" → **4.7 FPS measured** (`212 ms/frame`).
 * Metrics: now the **held-out test split** values, with the per-class fire/smoke
   split shown as an honest limitation.
-* Test count: 19 → **62**, and the description matches what the tests actually do.
+* Test count: 19 → **78**, and the description matches what the tests actually do.
 * Dashboard: "visual badges" are now real runtime state; the "evidence modal"
   is the incident page that actually exists.
 * FIRESENSE: the fire-negative clip is reported as **1 confirmed false alarm
@@ -154,7 +154,26 @@ running it repeatedly and comparing the database contents.
 
 ---
 
-## 5. What is left (deliberately not done here)
+## 5. Round 2 — multi-camera readiness and deployment packaging
+
+The two remaining objective items are done:
+
+| Area | Change |
+|---|---|
+| Camera registry | [`services/camera_registry.py`](services/camera_registry.py) + a `cameras` table. Seeded on first start from `CAMERA_SOURCES` (or `CAMERA_SOURCE`), managed at runtime through `/api/cameras`. |
+| Concurrent streams | [`services/camera_service.py`](services/camera_service.py) keeps one session **per camera**; `StreamBusy` is per camera, plus `stop_stream(id)` and `active_camera_ids()`. |
+| Per-camera status | [`services/status_service.py`](services/status_service.py) tracks each camera separately; `/api/status` returns a `cameras` array alongside the aggregate fields. |
+| Web UI | the dashboard shows a camera selector when more than one camera exists; the stream URL becomes `/video_feed?camera=<id>`. |
+| Deployment | [`Dockerfile`](Dockerfile) (CPU-only, gunicorn + gthread so MJPEG does not block the API), [`.dockerignore`](.dockerignore), [`docker-compose.yml`](docker-compose.yml) with a data volume, [`deploy/firewatch.service`](deploy/firewatch.service) and [`deploy/run-windows.ps1`](deploy/run-windows.ps1). |
+| Tests | 78. [`tests/test_cameras.py`](tests/test_cameras.py) covers registry seeding, deduplication, concurrent streams, per-camera stop, disabled cameras, and the camera API including the "cannot delete while streaming" guard. |
+
+> The Docker image was **not built** in this environment: the Docker daemon is not
+> running and there is no network access to pull a base image. The files are
+> provided for a normal host; `docker compose up -d --build` is the entry point.
+
+---
+
+## 6. What is left (deliberately not done here)
 
 1. **Smoke recall is 48 %.** This is a data/model problem, not a code problem.
    Fine-tune on `evaluation/negative-dfire` + more smoke samples; the recipe is in
@@ -165,6 +184,6 @@ running it repeatedly and comparing the database contents.
    authenticating reverse proxy before exposing it on a company network.
 4. **Notification channels.** Only a local beep today; SMTP/Telegram/webhook is
    the next integration (`services/event_service.py` is the hook point).
-5. **Multi-camera.** RTSP URLs work, a camera registry does not.
-6. **Packaging.** No Docker image or Windows service wrapper yet; the app runs
-   from a terminal and logs to `logs/firewatch.log`.
+5. **Hardware.** Several cameras now share one CPU; each stream costs a full
+   inference pass per frame, so a GPU or an ONNX/OpenVINO export is the scaling
+   lever.

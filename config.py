@@ -108,6 +108,9 @@ class Config:
     # ----------------------------------------------------------------- camera
     # A webcam index ("0") or any OpenCV stream URL ("rtsp://user:pass@host/...").
     CAMERA_SOURCE = _env_str("CAMERA_SOURCE", _env_str("CAMERA_INDEX", "0"))
+    # Optional multi-camera list, comma/semicolon separated. When set it seeds
+    # the camera registry on first start; otherwise CAMERA_SOURCE is used.
+    CAMERA_SOURCES = _env_str("CAMERA_SOURCES", "")
     CAMERA_INDEX = _env_int("CAMERA_INDEX", 0)  # kept for backwards compatibility
     FRAME_WIDTH = _env_int("FRAME_WIDTH", 640)
     FRAME_HEIGHT = _env_int("FRAME_HEIGHT", 480)

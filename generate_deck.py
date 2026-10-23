@@ -379,18 +379,18 @@ def create_deck():
     # ==========================================
     s10 = prs.slides.add_slide(slide_layout)
     set_bg(s10)
-    add_header(s10, "Software Verification: 62 Automated Tests (100% Pass)")
+    add_header(s10, "Software Verification: 78 Automated Tests (100% Pass)")
 
     add_card(s10, Inches(0.8), Inches(1.8), Inches(11.7), Inches(4.8), "Test Suite Structure & Coverage")
     tb = s10.shapes.add_textbox(Inches(1.2), Inches(2.6), Inches(11.0), Inches(3.8))
     tf = tb.text_frame
     tf.word_wrap = True
     p = tf.paragraphs[0]
-    p.text = "• test_detection.py (Computer Vision Layer):\n  ✔ Verified Non-Maximum Suppression and per-class confidence thresholds.\n  ✔ Verified ConfirmationTracker latch, re-arm and fire+smoke in the same frame.\n  ✔ Verified blank-frame guard, box-area sanity limits and evidence file writing.\n\n• test_api.py / test_web.py / test_config.py (Backend & Persistence):\n  ✔ Verified SQLite persistence, evidence path-traversal protection and alert acknowledgement.\n  ✔ Verified every REST endpoint and every HTML page (dashboard, history, incident, evidence).\n  ✔ Verified .env parsing, settings validation and per-test storage isolation.\n\n• Execution Result: 62 passed in ~14 seconds under Python 3.13 — each test runs on a temporary database."
+    p.text = "• test_detection.py (Computer Vision Layer):\n  ✔ Verified Non-Maximum Suppression and per-class confidence thresholds.\n  ✔ Verified ConfirmationTracker latch, re-arm and fire+smoke in the same frame.\n  ✔ Verified blank-frame guard, box-area sanity limits and evidence file writing.\n\n• test_api.py / test_web.py / test_config.py (Backend & Persistence):\n  ✔ Verified SQLite persistence, evidence path-traversal protection and alert acknowledgement.\n  ✔ Verified every REST endpoint and every HTML page (dashboard, history, incident, evidence).\n  ✔ Verified .env parsing, settings validation and per-test storage isolation.\n\n• Execution Result: 78 passed in ~14 seconds under Python 3.13 — each test runs on a temporary database."
     p.font.size = Pt(13)
     p.font.color.rgb = C_WHITE
 
-    add_speaker_notes(s10, "To ensure production-grade reliability, the codebase ships with 62 automated tests. They cover the confirmation state machine, the blank-frame guard, box filtering, evidence writing with path-traversal protection, alert acknowledgement, every REST route and every page. Each test runs against a temporary database, so running the suite can never damage operational data.")
+    add_speaker_notes(s10, "To ensure production-grade reliability, the codebase ships with 78 automated tests. They cover the confirmation state machine, the blank-frame guard, box filtering, evidence writing with path-traversal protection, alert acknowledgement, every REST route and every page. Each test runs against a temporary database, so running the suite can never damage operational data.")
 
     # ==========================================
     # SLIDE 11: Web Dashboard & Monitoring
@@ -431,7 +431,7 @@ def create_deck():
     tf = tb.text_frame
     tf.word_wrap = True
     p = tf.paragraphs[0]
-    p.text = "• Technical Success: Fine-tuned YOLO11n reaches 68.5% mAP@50 and 71.2% precision, at ~5 FPS on an 8-core CPU.\n\n• False Alarm Mitigation: Per-class temporal confirmation, blank-frame guard and box-area sanity filters.\n\n• Full-Stack Architecture: OpenCV capture (webcam or RTSP), SQLite storage, evidence snapshots, Flask dashboard and REST API.\n\n• Rigorous Testing: 62 automated Pytest tests with per-test database isolation + real FIRESENSE hard-negative validation.\n\n• Future Roadmap: hard-negative fine-tuning, ONNX/OpenVINO export for faster CPU inference, SMTP/Telegram alerts, and 10–13 Hz flame flicker analysis.\n\n──────────────────────────────────────────────────────────────────────────\nThank you for your time and guidance! I am now open to your questions."
+    p.text = "• Technical Success: Fine-tuned YOLO11n reaches 68.5% mAP@50 and 71.2% precision, at ~5 FPS on an 8-core CPU.\n\n• False Alarm Mitigation: Per-class temporal confirmation, blank-frame guard and box-area sanity filters.\n\n• Full-Stack Architecture: OpenCV capture (webcam or RTSP), SQLite storage, evidence snapshots, Flask dashboard and REST API.\n\n• Rigorous Testing: 78 automated Pytest tests with per-test database isolation + real FIRESENSE hard-negative validation.\n\n• Future Roadmap: hard-negative fine-tuning, ONNX/OpenVINO export for faster CPU inference, SMTP/Telegram alerts, and 10–13 Hz flame flicker analysis.\n\n──────────────────────────────────────────────────────────────────────────\nThank you for your time and guidance! I am now open to your questions."
     p.font.size = Pt(14)
     p.font.color.rgb = C_WHITE
 

@@ -204,3 +204,44 @@ def test_status_exposes_camera_list(client):
 
 def test_probe_unknown_camera_returns_404(client):
     assert client.get("/api/camera/probe?camera_id=424242").status_code == 404
+
+
+def test_start_stream_with_takeover_replaces_existing_stream(monkeypatch):
+    monkeypatch.setattr(camera_service, "open_camera", lambda source=None: FakeCapture())
+    camera_service.sync_from_config()
+
+    stream1 = camera_service.start_stream(camera_id=1)
+    try:
+        assert camera_service.is_stream_active(1) is True
+
+        # Without takeover, fails with StreamBusy
+        with pytest.raises(camera_service.StreamBusy):
+            camera_service.start_stream(camera_id=1, takeover=False)
+
+        # With takeover, stream1 is closed and replaced
+        stream2 = camera_service.start_stream(camera_id=1, takeover=True)
+        assert stream1.closed is True
+        assert stream2.closed is False
+        assert camera_service.is_stream_active(1) is True
+    finally:
+        camera_service.stop_stream(1)
+
+
+def test_batch_monitoring_endpoints(client, monkeypatch):
+    import services.camera_service as camera_service
+
+    # Test stop-all endpoint
+    stop_resp = client.post("/api/monitoring/stop-all")
+    assert stop_resp.status_code == 200
+    assert "stopped" in stop_resp.json
+
+    # Test start-all endpoint with mocked start_all_monitoring
+    monkeypatch.setattr(
+        camera_service,
+        "start_all_monitoring",
+        lambda: [{"camera_id": 1, "name": "Cam1", "status": "started"}],
+    )
+    start_resp = client.post("/api/monitoring/start-all")
+    assert start_resp.status_code == 200
+    assert start_resp.json["started_count"] == 1
+

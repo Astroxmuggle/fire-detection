@@ -105,7 +105,7 @@ class CameraStream:
 
 
 # ------------------------------------------------------------------- registry
-_stream_lock = threading.Lock()
+_stream_lock = threading.RLock()
 _active_streams: dict = {}
 
 
@@ -123,14 +123,22 @@ def _resolve_camera_or_raise(camera_id=None) -> Camera:
     return camera
 
 
-def start_stream(camera_id=None, model_path=None, confidence_threshold=None) -> CameraStream:
+def start_stream(
+    camera_id=None,
+    model_path=None,
+    confidence_threshold=None,
+    takeover: bool = False,
+) -> CameraStream:
     """Attach a viewer, starting the camera's worker if it is not running."""
     camera = _resolve_camera_or_raise(camera_id)
 
     with _stream_lock:
         existing = _active_streams.get(camera.id)
         if existing is not None and not existing.closed:
-            raise StreamBusy(f"Camera {camera.id} ({camera.name}) is already streaming")
+            if takeover:
+                existing.close()
+            else:
+                raise StreamBusy(f"Camera {camera.id} ({camera.name}) is already streaming")
 
     worker = worker_manager.ensure(
         camera,
@@ -213,6 +221,32 @@ def stop_all_monitoring() -> int:
 
 def worker_status() -> List[dict]:
     return worker_manager.status()
+
+
+def start_all_monitoring() -> List[dict]:
+    """Start headless monitoring workers for all enabled cameras."""
+    from services.camera_registry import list_cameras
+
+    results = []
+    for camera in list_cameras():
+        if not camera.enabled:
+            continue
+        try:
+            worker = start_monitoring(camera.id)
+            results.append({
+                "camera_id": camera.id,
+                "name": camera.name,
+                "status": "started",
+                "worker": worker.stats(),
+            })
+        except Exception as exc:  # noqa: BLE001
+            results.append({
+                "camera_id": camera.id,
+                "name": camera.name,
+                "status": "error",
+                "error": str(exc),
+            })
+    return results
 
 
 # ------------------------------------------------------------------ legacy API

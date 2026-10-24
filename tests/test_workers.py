@@ -343,3 +343,30 @@ def test_camera_with_running_worker_cannot_be_deleted(client, monkeypatch):
         assert "Stop the stream" in response.json["error"]
     finally:
         client.post("/api/stream/stop")
+
+
+def test_worker_state_change_publishes_event_to_bus(monkeypatch):
+    from services.event_bus import get_bus
+    from workers.inference_worker import InferenceWorker, WorkerConfig
+
+    bus = get_bus()
+    subscriber = bus.subscribe()
+
+    worker = InferenceWorker(
+        camera_id=99,
+        name="TestCam",
+        source=FakeSource(),
+        adapter=StubAdapter(),
+        config=WorkerConfig(),
+    )
+
+    try:
+        worker.start()
+        event = subscriber.get(timeout=1.0)
+        assert event is not None
+        assert event.type == "worker"
+        assert event.payload["camera_id"] == 99
+        assert event.payload["state"] == "running"
+    finally:
+        worker.stop()
+        bus.unsubscribe(subscriber)

@@ -18,7 +18,7 @@ from flask import (
 from alerts.manager import acknowledge_alerts_for_event, get_alerts_for_event
 from services.camera_registry import get_camera, list_cameras
 from services.camera_service import CameraError, StreamBusy, start_stream
-from services.event_service import get_event_by_id, get_events
+from services.event_service import get_event_by_id, get_events, get_event_history
 from services.evidence_service import resolve_evidence_path
 from services.incident_service import (
     IncidentError,
@@ -45,6 +45,7 @@ def dashboard():
         page="dashboard",
         cameras=list_cameras(include_disabled=True),
         incident_stats=get_incident_stats(),
+        recent_events=get_event_history(limit=15),
     )
 
 
@@ -127,11 +128,12 @@ def history():
 def video_feed():
     """Start a capture session for one camera and stream it as multipart JPEG."""
     camera_id = request.args.get("camera", type=int)
+    takeover = request.args.get("takeover", "0").lower() in ("1", "true")
     if camera_id is not None and get_camera(camera_id) is None:
         return jsonify({"error": f"Camera {camera_id} not found"}), 404
 
     try:
-        stream = start_stream(camera_id=camera_id)
+        stream = start_stream(camera_id=camera_id, takeover=takeover)
     except StreamBusy as exc:
         return jsonify({"error": str(exc), "hint": "Stop the other viewer first."}), 409
     except FileNotFoundError as exc:

@@ -181,7 +181,24 @@ class InferenceWorker:
         elif state is WorkerState.STOPPED:
             self.status.set_camera(self.camera_id, OFFLINE, source_info.raw, name=self.name)
 
-        self.status.set_worker(self.camera_id, state.value, error=self._last_error, stats=self.stats())
+        stats = self.stats()
+        self.status.set_worker(self.camera_id, state.value, error=self._last_error, stats=stats)
+
+        try:
+            from services.event_bus import publish
+
+            publish(
+                "worker",
+                {
+                    "camera_id": self.camera_id,
+                    "name": self.name,
+                    "state": state.value,
+                    "error": self._last_error,
+                    "stats": stats,
+                },
+            )
+        except Exception:
+            pass
 
     # -------------------------------------------------------------- lifecycle
     def start(self) -> None:

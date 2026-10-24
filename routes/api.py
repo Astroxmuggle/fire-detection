@@ -21,7 +21,9 @@ from services.camera_service import (
     is_stream_active,
     open_camera,
     parse_camera_source,
+    start_all_monitoring,
     start_monitoring,
+    stop_all_monitoring,
     stop_stream,
     worker_status,
 )
@@ -176,6 +178,21 @@ def start_camera_monitoring(camera_id):
         return jsonify({"error": str(exc), "hint": "Train or copy a model into models/best.pt."}), 503
 
     return jsonify({"camera_id": camera_id, "worker": worker.stats()}), 200
+
+
+@api_bp.route("/monitoring/start-all", methods=["POST"])
+def start_all_monitoring_route():
+    """Start headless monitoring workers for all enabled cameras."""
+    results = start_all_monitoring()
+    started_count = len([r for r in results if r.get("status") == "started"])
+    return jsonify({"results": results, "started_count": started_count}), 200
+
+
+@api_bp.route("/monitoring/stop-all", methods=["POST"])
+def stop_all_monitoring_route():
+    """Stop all running inference workers and streams."""
+    stopped = stop_all_monitoring()
+    return jsonify({"stopped": stopped, "message": f"Stopped {stopped} worker(s) and streams"}), 200
 
 
 @api_bp.route("/workers", methods=["GET"])
